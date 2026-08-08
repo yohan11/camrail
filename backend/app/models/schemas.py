@@ -9,14 +9,12 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
-    role = Column(String(50), default="read_only_manager")  # admin, document_administrator, roster_manager, read_only_manager
+    role = Column(String(50), default="read_only")  # admin, document_admin, read_only
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
     uploaded_documents = relationship("Document", back_populates="uploader")
-    created_shifts = relationship("Shift", foreign_keys="[Shift.created_by]", back_populates="creator")
-    approved_shifts = relationship("Shift", foreign_keys="[Shift.approved_by]", back_populates="approver")
     audit_events = relationship("AuditEvent", back_populates="actor")
 
 
@@ -90,8 +88,6 @@ class Employee(Base):
     qualifications = relationship("EmployeeQualification", back_populates="employee", cascade="all, delete-orphan")
     availabilities = relationship("Availability", back_populates="employee", cascade="all, delete-orphan")
     leave_requests = relationship("LeaveRequest", back_populates="employee", cascade="all, delete-orphan")
-    assignments = relationship("Assignment", back_populates="employee")
-    roster_candidates = relationship("RosterCandidate", back_populates="employee")
 
 
 class Qualification(Base):
@@ -148,91 +144,6 @@ class LeaveRequest(Base):
     employee = relationship("Employee", back_populates="leave_requests")
 
 
-class Shift(Base):
-    __tablename__ = "shifts"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=False)
-    route_or_station = Column(String(255), nullable=False)
-    starts_at = Column(DateTime, nullable=False)
-    ends_at = Column(DateTime, nullable=False)
-    status = Column(String(50), default="draft")  # draft, approved, cancelled
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    approved_at = Column(DateTime, nullable=True)
-
-    # Relationships
-    creator = relationship("User", foreign_keys=[created_by], back_populates="created_shifts")
-    approver = relationship("User", foreign_keys=[approved_by], back_populates="approved_shifts")
-    requirements = relationship("ShiftRequirement", back_populates="shift", cascade="all, delete-orphan")
-    roster_runs = relationship("RosterRun", back_populates="shift", cascade="all, delete-orphan")
-    assignments = relationship("Assignment", back_populates="shift", cascade="all, delete-orphan")
-
-
-class ShiftRequirement(Base):
-    __tablename__ = "shift_requirements"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=False)
-    role = Column(String(100), nullable=False)
-    qualification_id = Column(Integer, ForeignKey("qualifications.id"), nullable=True)
-    headcount = Column(Integer, default=1)
-
-    # Relationships
-    shift = relationship("Shift", back_populates="requirements")
-    assignments = relationship("Assignment", back_populates="requirement")
-    roster_candidates = relationship("RosterCandidate", back_populates="requirement")
-
-
-class RosterRun(Base):
-    __tablename__ = "roster_runs"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=False)
-    status = Column(String(50), default="pending")  # pending, complete, partial, failed
-    parameters_json = Column(Text, nullable=True)  # JSON-serialized run parameters
-    generated_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    generated_at = Column(DateTime, server_default=func.now())
-
-    # Relationships
-    shift = relationship("Shift", back_populates="roster_runs")
-    candidates = relationship("RosterCandidate", back_populates="roster_run", cascade="all, delete-orphan")
-
-
-class RosterCandidate(Base):
-    __tablename__ = "roster_candidates"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    roster_run_id = Column(Integer, ForeignKey("roster_runs.id"), nullable=False)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
-    requirement_id = Column(Integer, ForeignKey("shift_requirements.id"), nullable=False)
-    eligible = Column(Boolean, default=True)
-    score = Column(Float, default=0.0)
-    reasons_json = Column(Text, nullable=True)  # JSON-serialized eligibility details
-
-    # Relationships
-    roster_run = relationship("RosterRun", back_populates="candidates")
-    employee = relationship("Employee", back_populates="roster_candidates")
-    requirement = relationship("ShiftRequirement", back_populates="roster_candidates")
-
-
-class Assignment(Base):
-    __tablename__ = "assignments"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=False)
-    requirement_id = Column(Integer, ForeignKey("shift_requirements.id"), nullable=False)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
-    source = Column(String(50), default="system")  # system, manual
-    override_reason = Column(Text, nullable=True)
-    status = Column(String(50), default="active")  # active, archived
-
-    # Relationships
-    shift = relationship("Shift", back_populates="assignments")
-    requirement = relationship("ShiftRequirement", back_populates="assignments")
-    employee = relationship("Employee", back_populates="assignments")
-
-
 class Rule(Base):
     __tablename__ = "rules"
     
@@ -254,11 +165,12 @@ class AuditEvent(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    action = Column(String(255), nullable=False)  # login, upload_document, generate_roster, etc.
-    entity_type = Column(String(100), nullable=True)  # document, employee, shift, etc.
+    action = Column(String(255), nullable=False)  # login, upload_document, search, etc.
+    entity_type = Column(String(100), nullable=True)  # document, user, etc.
     entity_id = Column(String(100), nullable=True)
     details_json = Column(Text, nullable=True)  # JSON-serialized details
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
     actor = relationship("User", back_populates="audit_events")
+

@@ -13,7 +13,7 @@ if settings.DATABASE_URL.startswith("sqlite"):
 
 app = FastAPI(
     title="RailMind Lite API",
-    description="Backend API for CAMRAIL RailMind Lite - RAG & Workforce Rostering",
+    description="Backend API for CAMRAIL RailMind Lite - RAG Engine",
     version="1.0"
 )
 
@@ -39,7 +39,7 @@ def startup_event():
         if user_count == 0:
             print("No users found. Seeding initial manager accounts...")
             
-            # Roles: admin, document_administrator, roster_manager, read_only_manager
+            # Roles: admin, document_admin, read_only
             initial_users = [
                 {
                     "email": "admin@camrail.net",
@@ -51,19 +51,13 @@ def startup_event():
                     "email": "docadmin@camrail.net",
                     "password": "docadminpassword",
                     "full_name": "Document Admin",
-                    "role": "document_administrator"
-                },
-                {
-                    "email": "roster@camrail.net",
-                    "password": "rosterpassword",
-                    "full_name": "Roster Manager",
-                    "role": "roster_manager"
+                    "role": "document_admin"
                 },
                 {
                     "email": "readonly@camrail.net",
                     "password": "readonlypassword",
-                    "full_name": "Read-Only Manager",
-                    "role": "read_only_manager"
+                    "full_name": "Read-Only User",
+                    "role": "read_only"
                 }
             ]
             
