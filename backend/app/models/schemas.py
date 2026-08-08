@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float, Date, func
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import TSVECTOR
+from pgvector.sqlalchemy import Vector
 from app.database import Base
 
 class User(Base):
@@ -63,8 +65,9 @@ class DocumentChunk(Base):
     page_end = Column(Integer, nullable=False)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
-    embedding = Column(Text, nullable=True)  # JSON-serialized list of floats (for portability)
-    metadata_json = Column(Text, nullable=True)  # JSON-serialized metadata dictionary
+    embedding = Column(Vector(384), nullable=True)  # 384-dimensional dense vector (MiniLM-L12-v2)
+    search_vector = Column(TSVECTOR, nullable=True)  # PostgreSQL full-text search vector
+    metadata_json = Column(Text, nullable=True)  # JSON-serialized metadata: {"source_format": "pdf"|"docx", "is_full_document_citation": bool}
 
     # Relationships
     document = relationship("Document", back_populates="chunks")

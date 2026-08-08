@@ -13,6 +13,7 @@ from app.config import settings
 from app.models.schemas import User, Document, DocumentPage, AuditEvent
 from app.schemas.document import DocumentResponse, DocumentDetailResponse
 from app.services.document_processor import process_document
+from app.services.indexing import index_document
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -93,7 +94,7 @@ async def upload_document(
     db.commit()
     db.refresh(doc)
 
-    # 7. Extract document pages and text
+    # 7. Extract document pages and index chunks
     try:
         extracted_pages = process_document(saved_path, ext)
         for page_info in extracted_pages:
@@ -104,9 +105,13 @@ async def upload_document(
                 extraction_method=page_info["method"]
             )
             db.add(page_record)
+        db.commit()
+
+        # Generate chunk embeddings and tsvectors
+        index_document(doc.id, db)
         doc.status = "indexed"
     except Exception as e:
-        # Failure during processing does not crash the request; document is marked failed
+        # Failure during extraction or indexing sets status to failed
         doc.status = "failed"
 
     # 8. Log audit event
@@ -218,8 +223,9 @@ def retry_document_processing(
             detail="Seuls les documents avec le statut 'failed' peuvent être retentés."
         )
     
-    # Delete any previous partial pages
+    # Delete any previous partial pages and chunks
     db.query(DocumentPage).filter(DocumentPage.document_id == doc.id).delete()
+    db.commit()
     
     ext = os.path.splitext(doc.file_url)[1] if doc.file_url else ""
     try:
@@ -232,6 +238,10 @@ def retry_document_processing(
                 extraction_method=page_info["method"]
             )
             db.add(page_record)
+        db.commit()
+
+        # Re-index chunks
+        index_document(doc.id, db)
         doc.status = "indexed"
     except Exception:
         doc.status = "failed"
