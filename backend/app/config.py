@@ -1,0 +1,24 @@
+import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    APP_ENV: str = "development"
+    APP_TIMEZONE: str = "Africa/Douala"
+    
+    DATABASE_URL: str
+    
+    JWT_SECRET: str
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    
+    MIN_REST_HOURS: int = 12
+    MAX_WEEKLY_HOURS: int = 48
+    MAX_UPLOAD_MB: int = 25
+
+    model_config = SettingsConfigDict(
+        env_file=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+settings = Settings()
