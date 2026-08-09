@@ -1,5 +1,6 @@
 import os
 import json
+import hashlib
 from typing import List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -90,8 +91,23 @@ def index_document(document_id: int, db: Session) -> int:
         if not page_text:
             continue
 
+        # Heuristique simple de détection de section pour le PoC:
+        # Ligne courte (<80 chars), sans ponctuation finale, précédant le reste de la page
+        section = None
+        lines = page_text.split("\n")
+        if lines:
+            first_line = lines[0].strip()
+            if first_line and len(first_line) < 80 and not first_line[-1] in {'.', ':', '!', '?'}:
+                section = first_line
+
         chunks = chunk_text(page_text, chunk_size_words=350, overlap_words=50)
         for piece in chunks:
+            # Calcul du hash SHA-256 du contenu
+            content_hash = hashlib.sha256(piece.encode("utf-8")).hexdigest()
+            
+            # NOTE: Pour ce PoC, on crée le chunk même s'il existe déjà un hash identique 
+            # (pas de déduplication stricte), l'objectif est d'avoir le hash présent et interrogeable.
+            
             emb = embed_text(piece)
             chunk_obj = DocumentChunk(
                 document_id=doc.id,
@@ -101,7 +117,10 @@ def index_document(document_id: int, db: Session) -> int:
                 content=piece,
                 embedding=emb,
                 search_vector=func.to_tsvector("french", piece),
-                metadata_json=metadata_json
+                metadata_json=metadata_json,
+                section=section,
+                security_group="default",
+                content_hash=content_hash
             )
             db.add(chunk_obj)
             chunk_index += 1

@@ -68,9 +68,29 @@ class DocumentChunk(Base):
     embedding = Column(Vector(384), nullable=True)  # 384-dimensional dense vector (MiniLM-L12-v2)
     search_vector = Column(TSVECTOR, nullable=True)  # PostgreSQL full-text search vector
     metadata_json = Column(Text, nullable=True)  # JSON-serialized metadata: {"source_format": "pdf"|"docx", "is_full_document_citation": bool}
+    
+    # New fields for PoC specifications
+    section = Column(String(255), nullable=True)
+    security_group = Column(String(100), nullable=True, default="default")
+    content_hash = Column(String(64), nullable=True, index=True)
 
     # Relationships
     document = relationship("Document", back_populates="chunks")
+
+
+class RdaQuery(Base):
+    __tablename__ = "rda_queries"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_id = Column(String(36), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    query_text = Column(Text, nullable=False)
+    results_count = Column(Integer, nullable=False, default=0)
+    duration_ms = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    
+    # Relationships
+    user = relationship("User")
 
 
 class Employee(Base):

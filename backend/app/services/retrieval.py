@@ -23,7 +23,8 @@ def hybrid_search(
     query: str,
     top_k: int = 5,
     department: Optional[str] = None,
-    category: Optional[str] = None
+    category: Optional[str] = None,
+    security_group: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Performs hybrid search (vector similarity + PostgreSQL full-text search)
@@ -42,6 +43,8 @@ def hybrid_search(
         base_filter.append(Document.department == department)
     if category:
         base_filter.append(Document.category == category)
+    if security_group:
+        base_filter.append(DocumentChunk.security_group == security_group)
 
     # 2. Vector search (Top 8 by cosine distance)
     vector_results = (

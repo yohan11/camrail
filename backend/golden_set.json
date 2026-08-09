@@ -1,0 +1,62 @@
+[
+  {
+    "question": "Quelle est la durée minimale de repos entre deux services ?",
+    "expected_document_title": "Consigne RH 04 - Temps de Repos et Securite",
+    "expected_page": 1,
+    "category": "RH"
+  },
+  {
+    "question": "Où s'effectue la maintenance préventive des locomotives ?",
+    "expected_document_title": "Consigne RH 04 - Temps de Repos et Securite",
+    "expected_page": 2,
+    "category": "Maintenance"
+  },
+  {
+    "question": "Que faire en cas de dérangement des signaux sur la section Douala Yaoundé ?",
+    "expected_document_title": "Consigne Exploitation - Cantonnement Telephonique",
+    "expected_page": null,
+    "category": "Exploitation"
+  },
+  {
+    "question": "Quels sont les équipements de protection individuelle obligatoires sur les voies ?",
+    "expected_document_title": "Règlement de Sécurité",
+    "expected_page": null,
+    "category": "Sécurité"
+  },
+  {
+    "question": "Quelle est la procédure pour déclarer un accident de travail ?",
+    "expected_document_title": "Manuel des Procédures RH",
+    "expected_page": null,
+    "category": "RH"
+  },
+  {
+    "question": "Comment s'effectue le contrôle des bogies ?",
+    "expected_document_title": "Consigne RH 04 - Temps de Repos et Securite",
+    "expected_page": 2,
+    "category": "Maintenance"
+  },
+  {
+    "question": "Qui doit échanger les dépêches réglementaires ?",
+    "expected_document_title": "Consigne Exploitation - Cantonnement Telephonique",
+    "expected_page": null,
+    "category": "Exploitation"
+  },
+  {
+    "question": "Quelle est la recette du poulet DG ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": null
+  },
+  {
+    "question": "Comment réparer un vaisseau spatial ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": null
+  },
+  {
+    "question": "Quel est le dernier résultat du match de football des Lions Indomptables ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": null
+  }
+]
