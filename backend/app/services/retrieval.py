@@ -1,10 +1,21 @@
 import json
+import re
 from typing import List, Dict, Any, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.schemas import Document, DocumentChunk
 from app.services.indexing import embed_text
+
+
+def _sanitize_query_terms(query: str) -> list[str]:
+    """
+    Découpe la requête en mots alphanumériques (accents inclus), en filtrant tout
+    caractère spécial qui ferait planter to_tsquery (&, |, !, (, ), :, etc.).
+    Retourne une liste de mots nettoyés, vide si rien d'exploitable.
+    """
+    words = re.findall(r"[a-zA-ZÀ-ÖØ-öø-ÿ0-9]+", query)
+    return [w for w in words if len(w) > 1]  # ignore les mots d'une seule lettre
 
 
 def hybrid_search(
@@ -44,16 +55,21 @@ def hybrid_search(
     )
 
     # 3. Lexical full-text search (Top 8 by ts_rank)
-    ts_query = func.plainto_tsquery("french", clean_query)
-    lexical_results = (
-        db.query(DocumentChunk, Document)
-        .join(Document, DocumentChunk.document_id == Document.id)
-        .filter(*base_filter)
-        .filter(DocumentChunk.search_vector.op("@@")(ts_query))
-        .order_by(func.ts_rank(DocumentChunk.search_vector, ts_query).desc())
-        .limit(8)
-        .all()
-    )
+    terms = _sanitize_query_terms(clean_query)
+    if not terms:
+        lexical_results = []
+    else:
+        or_query_string = " | ".join(terms)
+        ts_query = func.to_tsquery("french", or_query_string)
+        lexical_results = (
+            db.query(DocumentChunk, Document)
+            .join(Document, DocumentChunk.document_id == Document.id)
+            .filter(*base_filter)
+            .filter(DocumentChunk.search_vector.op("@@")(ts_query))
+            .order_by(func.ts_rank(DocumentChunk.search_vector, ts_query).desc())
+            .limit(8)
+            .all()
+        )
 
     # 4. Reciprocal Rank Fusion (RRF, k=60)
     # Score formula: 1 / (60 + rank_vector) + 1 / (60 + rank_lexical)

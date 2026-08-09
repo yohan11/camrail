@@ -18,7 +18,7 @@ def test_hybrid_search():
     print("      RAILMIND LITE - DAY 3 HYBRID SEARCH & INDEXING TESTS")
     print("=" * 70)
 
-    total_tests = 8
+    total_tests = 9
     passed_tests = 0
 
     db = SessionLocal()
@@ -148,6 +148,23 @@ def test_hybrid_search():
         assert top_result_lex["page_start"] == 2, "Lexical search should rank Page 2 (maintenance) higher!"
         print("-> Success! Lexical-heavy search ranked Page 2 as #1 top result!")
         passed_tests += 1
+        # Step 6.5: Testing Hybrid Search with partial natural language match
+        print(f"\n[Step 6.5] Testing Hybrid Search with partial match: 'quelle est la pause obligatoire entre deux services'...")
+        search_res_partial = client.post(
+            "/search",
+            headers=headers,
+            json={"query": "quelle est la pause obligatoire entre deux services", "top_k": 5}
+        )
+        assert search_res_partial.status_code == 200
+        results_partial = search_res_partial.json()["results"]
+        assert len(results_partial) > 0, "Should return results despite partial lexical match"
+        
+        # Verify that the document about rest (Page 1) is present in the results
+        page_starts = [r["page_start"] for r in results_partial]
+        assert 1 in page_starts, "Page 1 (rest rules) should be found by partial lexical OR vector search!"
+        print("-> Success! Partial natural language match found the relevant document.")
+        passed_tests += 1
+
 
         # Step 7: DOCX upload, activation and citation check
         print("\n[Step 7] Generating, uploading and searching a DOCX document...")
