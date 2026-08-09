@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, SessionLocal
 from app.models import schemas
-from app.routers import auth, users, documents, search
+from app.routers import auth, users, documents, search, assistant
 from app.security import hash_password
 
 # Initialize database tables directly if using SQLite for ease of development.
@@ -31,6 +31,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(documents.router)
 app.include_router(search.router)
+app.include_router(assistant.router)
 
 @app.on_event("startup")
 def startup_event():

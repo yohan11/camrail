@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     MIN_REST_HOURS: int = 12
     MAX_WEEKLY_HOURS: int = 48
     MAX_UPLOAD_MB: int = 25
+    
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:3b"
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
