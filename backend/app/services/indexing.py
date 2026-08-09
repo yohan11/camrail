@@ -8,11 +8,7 @@ from sentence_transformers import SentenceTransformer
 from app.models.schemas import Document, DocumentPage, DocumentChunk
 
 # Initialize sentence-transformers model from local cache
-_model_snapshot = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub", "models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2", "snapshots", "e8f8c211226b894fcb81acc59f3b34ba3efd5f42")
-if os.path.exists(_model_snapshot):
-    _model = SentenceTransformer(_model_snapshot, local_files_only=True)
-else:
-    _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", local_files_only=True)
+_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
 
 def embed_text(text: str) -> List[float]:
