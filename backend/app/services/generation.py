@@ -73,14 +73,14 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."
 
     payload = {
-        "model": settings.OLLAMA_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ],
-        "stream": False,
-        "options": {"temperature": 0.2}
-    }
+    "model": settings.OLLAMA_MODEL,
+    "messages": [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ],
+    "stream": False,
+    "options": {"temperature": 0.2, "num_predict": 150}
+}
 
     try:
         with httpx.Client(timeout=180.0) as client:
