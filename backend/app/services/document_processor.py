@@ -41,11 +41,45 @@ def _format_table_as_markdown(table: list) -> str:
     return "\n".join(lines)
 
 
+import logging
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+def ocr_page_image(pdf_path: str, page_number: int) -> str:
+    """
+    Extracts text from a single PDF page using Tesseract OCR.
+    Gracefully returns empty string if Tesseract or Poppler is unavailable.
+    """
+    try:
+        from pdf2image import convert_from_path
+        import pytesseract
+    except ImportError:
+        logger.warning("pdf2image or pytesseract missing. OCR skipped.")
+        return ""
+
+    try:
+        # Set Tesseract path if configured
+        if hasattr(settings, "TESSERACT_CMD_PATH") and settings.TESSERACT_CMD_PATH:
+            pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD_PATH
+
+        # Convert only the specific page
+        images = convert_from_path(pdf_path, first_page=page_number, last_page=page_number)
+        if not images:
+            return ""
+
+        # Run OCR
+        text = pytesseract.image_to_string(images[0], lang="fra+eng")
+        return text.strip()
+    except Exception as e:
+        logger.warning(f"Tesseract OCR non disponible ou erreur ({e}) - la page {page_number} reste sans texte extrait.")
+        return ""
+
 def extract_pdf(file_path: str) -> List[Dict[str, Any]]:
     """
     Extracts text and tables page by page from a PDF document using pdfplumber.
     Tables are converted to markdown and appended to the text of the corresponding page.
-    If a page returns less than 20 characters, it is flagged as 'ocr_needed'.
+    If a page returns less than 20 characters, it is flagged as 'ocr_needed' and Tesseract OCR is attempted.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -71,7 +105,13 @@ def extract_pdf(file_path: str) -> List[Dict[str, Any]]:
             full_page_text = "\n\n".join(parts)
             
             # If page text is very sparse (< 20 chars), flag for future OCR
-            method = "ocr_needed" if len(full_page_text.strip()) < 20 else "native"
+            if len(full_page_text.strip()) < 20:
+                method = "ocr_needed"
+                ocr_text = ocr_page_image(file_path, idx)
+                if ocr_text:
+                    full_page_text = ocr_text
+            else:
+                method = "native"
             
             pages_data.append({
                 "page_number": idx,
