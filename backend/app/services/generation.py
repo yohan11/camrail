@@ -83,7 +83,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     }
 
     try:
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=180.0) as client:
             response = client.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload)
             response.raise_for_status()
             data = response.json()
