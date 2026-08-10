@@ -33,7 +33,7 @@ def test_assistant():
         "username": "docadmin@camrail.net",
         "password": "docadminpassword"
     }
-    login_res = client.post("/auth/token", data=login_data)
+    login_res = client.post("/auth/login", data=login_data)
     assert login_res.status_code == 200, "Login failed"
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
