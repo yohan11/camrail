@@ -17,15 +17,22 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
             "citations": []
         }
 
-    # Evaluate confidence based on the highest score
-    top_score = search_results[0].get("score", 0.0)
-    
-    # Note: RRF score reflects rank, not pure semantic distance, so 0.02 is a starting heuristic
-    if top_score > 0.02:
+    # Evaluate confidence based on vector distance
+    top_result = search_results[0]
+    vector_distance = top_result.get("vector_distance")
+
+    if vector_distance is None:
+        # Trouvé uniquement par le lexical, pas de signal sémantique disponible :
+        # traite comme confiance modérée par défaut, le match lexical reste un signal
+        confidence = "medium"
+    elif vector_distance < 0.5:
+        # Distance cosinus faible = très similaire sémantiquement (seuil de départ)
         confidence = "high"
-    elif top_score > 0.0:
+    elif vector_distance < 0.75:
+        # Distance moyenne (seuil ajusté après test manuel : tarte tatin donne ~0.79)
         confidence = "medium"
     else:
+        # Distance élevée = aucun rapport sémantique réel
         confidence = "insufficient"
         
     if confidence == "insufficient":

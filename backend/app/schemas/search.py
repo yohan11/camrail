@@ -19,6 +19,7 @@ class SearchResultItem(BaseModel):
     page_end: int
     excerpt: str
     score: float
+    vector_distance: Optional[float] = None
     is_full_document_citation: bool
 
     model_config = ConfigDict(from_attributes=True)

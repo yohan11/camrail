@@ -84,17 +84,35 @@ def test_assistant():
         assert latency < 1.0, f"Out-of-domain request took too long ({latency:.3f}s) - it should have short-circuited Ollama."
         print("-> Success! Assistant correctly abstained and short-circuited the LLM call.")
 
+        # 4.5 Test with out-of-domain across multiple existing documents
+        print("\n[Step 3.5] Testing /assistant/query with multiple active documents and completely unrelated question...")
+        start_time = time.time()
+        q3_payload = {"query": "comment réparer le moteur d'une fusée SpaceX ?"}
+        res3 = client.post("/assistant/query", headers=headers, json=q3_payload)
+        latency_q3 = time.time() - start_time
+
+        assert res3.status_code == 200
+        data3 = res3.json()
+        
+        print(f"-> Résultat (en {latency_q3:.3f}s) :")
+        print(f"   * Confidence: {data3['confidence']}")
+        print(f"   * Answer: {data3['answer']}")
+
+        assert data3["confidence"] == "insufficient", "Confidence should be insufficient even with multiple documents for unrelated queries."
+        assert "ne peut pas être confirmée" in data3["answer"].lower() or "trouve pas cette information" in data3["answer"].lower() or "indisponible" in data3["answer"].lower(), "Answer should clearly abstain."
+        print("-> Success! Assistant correctly abstained on a multi-document database.")
+
         # 5. Check RdaQuery table
         print("\n[Step 4] Checking RdaQuery tracking...")
         final_queries_count = db.query(RdaQuery).count()
-        assert final_queries_count == initial_queries_count + 2, "Two new RdaQuery records should have been created."
+        assert final_queries_count == initial_queries_count + 3, "Three new RdaQuery records should have been created."
         
         # Verify request IDs are distinct
-        assert data1["request_id"] != data2["request_id"], "Request IDs must be unique."
+        assert data1["request_id"] != data2["request_id"] and data2["request_id"] != data3["request_id"], "Request IDs must be unique."
         print("-> Success! Request tracking is working.")
 
         print("\n" + "=" * 70)
-        print("        ALL ASSISTANT TESTS COMPLETED SUCCESSFULLY! (4/4 PASSED)")
+        print("        ALL ASSISTANT TESTS COMPLETED SUCCESSFULLY! (5/5 PASSED)")
         print("=" * 70)
 
     except AssertionError as e:

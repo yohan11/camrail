@@ -47,12 +47,13 @@ def hybrid_search(
         base_filter.append(DocumentChunk.security_group == security_group)
 
     # 2. Vector search (Top 8 by cosine distance)
+    distance_expr = DocumentChunk.embedding.cosine_distance(query_emb).label("distance")
     vector_results = (
-        db.query(DocumentChunk, Document)
+        db.query(DocumentChunk, Document, distance_expr)
         .join(Document, DocumentChunk.document_id == Document.id)
         .filter(*base_filter)
         .filter(DocumentChunk.embedding.isnot(None))
-        .order_by(DocumentChunk.embedding.cosine_distance(query_emb))
+        .order_by(distance_expr)
         .limit(8)
         .all()
     )
@@ -78,10 +79,14 @@ def hybrid_search(
     # Score formula: 1 / (60 + rank_vector) + 1 / (60 + rank_lexical)
     chunk_scores: Dict[int, float] = {}
     chunk_map: Dict[int, tuple[DocumentChunk, Document]] = {}
+    chunk_distances: Dict[int, float] = {}
 
-    for rank, (chunk, doc) in enumerate(vector_results, start=1):
+    for rank, (chunk, doc, dist) in enumerate(vector_results, start=1):
         chunk_scores[chunk.id] = chunk_scores.get(chunk.id, 0.0) + (1.0 / (60.0 + rank))
         chunk_map[chunk.id] = (chunk, doc)
+        # Store the actual cosine distance (will be between 0 and 2)
+        if dist is not None:
+            chunk_distances[chunk.id] = float(dist)
 
     for rank, (chunk, doc) in enumerate(lexical_results, start=1):
         chunk_scores[chunk.id] = chunk_scores.get(chunk.id, 0.0) + (1.0 / (60.0 + rank))
@@ -98,6 +103,7 @@ def hybrid_search(
     for cid in sorted_chunk_ids:
         chunk, doc = chunk_map[cid]
         score = chunk_scores[cid]
+        vector_dist = chunk_distances.get(cid)
 
         meta = {}
         if chunk.metadata_json:
@@ -121,6 +127,7 @@ def hybrid_search(
             "page_end": chunk.page_end,
             "excerpt": excerpt,
             "score": round(score, 6),
+            "vector_distance": vector_dist,
             "is_full_document_citation": is_full_doc,
         })
 
