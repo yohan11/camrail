@@ -39,6 +39,14 @@ def startup_event():
     db = SessionLocal()
     try:
         user_count = db.query(schemas.User).count()
+        group_count = db.query(schemas.SecurityGroup).count()
+        
+        if group_count == 0:
+            print("No security groups found. Seeding initial groups...")
+            for g_name in ["default", "operations", "safety"]:
+                db.add(schemas.SecurityGroup(name=g_name, description=f"{g_name.capitalize()} Group"))
+            db.commit()
+
         if user_count == 0:
             print("No users found. Seeding initial manager accounts...")
             

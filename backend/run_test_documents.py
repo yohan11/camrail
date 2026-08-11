@@ -114,6 +114,7 @@ def run_tests():
         assert res.status_code == 200, f"Get detail failed: {res.text}"
         detail = res.json()
         pages = detail.get("pages", [])
+        pages.sort(key=lambda p: p["page_number"])
         print(f"-> Document retrieved with {len(pages)} extracted page(s)")
         assert len(pages) == 2, f"Expected 2 pages for PDF, got {len(pages)}"
         

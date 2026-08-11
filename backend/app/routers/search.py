@@ -33,7 +33,7 @@ def search_documents(
         top_k=payload.top_k,
         department=payload.department,
         category=payload.category,
-        security_group=payload.security_group
+        security_groups=[g.name for g in current_user.security_groups]
     )
 
     duration_ms = int((time.perf_counter() - start_time) * 1000)
