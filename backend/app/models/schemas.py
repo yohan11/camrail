@@ -60,6 +60,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     role = Column(String(50), default="read_only")  # admin, document_admin, read_only
+    department = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
 

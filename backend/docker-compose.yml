@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: camrail
+      POSTGRES_PASSWORD: camrailpassword
+      POSTGRES_DB: railmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U camrail -d railmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://camrail:camrailpassword@db:5432/railmind
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+
+volumes:
+  postgres_data:

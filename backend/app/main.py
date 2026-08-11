@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, SessionLocal
 from app.models import schemas
-from app.routers import auth, users, documents, search, assistant
+from app.routers import auth, users, documents, search, assistant, dashboard
 from app.security import hash_password
 
 # Initialize database tables directly if using SQLite for ease of development.
@@ -32,6 +32,7 @@ app.include_router(users.router)
 app.include_router(documents.router)
 app.include_router(search.router)
 app.include_router(assistant.router)
+app.include_router(dashboard.router)
 
 @app.on_event("startup")
 def startup_event():
@@ -68,7 +69,8 @@ def startup_event():
                     "email": "readonly@camrail.net",
                     "password": "readonlypassword",
                     "full_name": "Read-Only User",
-                    "role": "read_only"
+                    "role": "read_only",
+                    "department": "Formation"
                 }
             ]
             
@@ -79,6 +81,7 @@ def startup_event():
                     password_hash=hashed_pwd,
                     full_name=user_data["full_name"],
                     role=user_data["role"],
+                    department=user_data.get("department"),
                     is_active=True
                 )
                 db.add(db_user)

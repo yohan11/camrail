@@ -10,6 +10,7 @@ from app.models.schemas import User, RdaQuery
 from app.schemas.assistant import AssistantQueryRequest, AssistantQueryResponse, CitationItem
 from app.services.retrieval import hybrid_search
 from app.services.generation import generate_answer
+from app.services.audit import log_audit_event
 
 router = APIRouter(prefix="/assistant", tags=["Assistant"])
 
@@ -28,11 +29,17 @@ def assistant_query(
 
     # 1. Retrieve chunks with user's authorized security groups
     user_security_groups = [group.name for group in current_user.security_groups]
+    
+    # Simple department-based access restriction for PoC
+    search_department = payload.department
+    if current_user.role == "read_only" and current_user.department:
+        search_department = current_user.department
+        
     search_results = hybrid_search(
         db=db,
         query=payload.query,
         top_k=5,
-        department=payload.department,
+        department=search_department,
         category=payload.category,
         security_groups=user_security_groups
     )
@@ -60,6 +67,18 @@ def assistant_query(
     )
     db.add(rda_query)
     db.commit()
+
+    log_audit_event(
+        db=db,
+        actor_user_id=current_user.id,
+        action="assistant_query",
+        entity_type="rda_query",
+        entity_id=request_id,
+        details={
+            "confidence": gen_result.get("confidence"),
+            "results_count": len(search_results)
+        }
+    )
 
     return AssistantQueryResponse(
         request_id=request_id,

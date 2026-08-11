@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user, RoleChecker
 from app.config import settings
-from app.models.schemas import User, Document, DocumentPage, AuditEvent
+from app.models.schemas import User, Document, DocumentPage
 from app.schemas.document import DocumentResponse, DocumentDetailResponse
 from app.services.document_processor import process_document
 from app.services.indexing import index_document
+from app.services.audit import log_audit_event
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -123,20 +124,20 @@ async def upload_document(
         doc.status = "failed"
 
     # 9. Log audit event
-    audit = AuditEvent(
+    log_audit_event(
+        db=db,
         actor_user_id=current_user.id,
         action="upload_document",
         entity_type="document",
         entity_id=str(doc.id),
-        details_json=json.dumps({
+        details={
             "title": doc.title,
             "filename": filename,
             "status": doc.status,
             "checksum": doc.checksum
-        })
+        }
     )
-    db.add(audit)
-    db.commit()
+    
     db.refresh(doc)
 
     return doc
@@ -152,6 +153,11 @@ def list_documents(
     db: Session = Depends(get_db)
 ):
     query = db.query(Document)
+    
+    # Simple department-based access restriction for PoC
+    if current_user.role == "read_only" and current_user.department:
+        query = query.filter(Document.department == current_user.department)
+        
     if status:
         query = query.filter(Document.status == status)
     if category:
@@ -197,16 +203,17 @@ def activate_document(
         )
     
     doc.status = "active"
+    db.commit()
     
-    audit = AuditEvent(
+    log_audit_event(
+        db=db,
         actor_user_id=current_user.id,
         action="activate_document",
         entity_type="document",
         entity_id=str(doc.id),
-        details_json=json.dumps({"title": doc.title, "new_status": "active"})
+        details={"title": doc.title, "new_status": "active"}
     )
-    db.add(audit)
-    db.commit()
+    
     db.refresh(doc)
     
     return doc
@@ -254,15 +261,17 @@ def retry_document_processing(
     except Exception:
         doc.status = "failed"
     
-    audit = AuditEvent(
+    db.commit()
+    
+    log_audit_event(
+        db=db,
         actor_user_id=current_user.id,
         action="retry_document_processing",
         entity_type="document",
         entity_id=str(doc.id),
-        details_json=json.dumps({"title": doc.title, "status": doc.status})
+        details={"title": doc.title, "status": doc.status}
     )
-    db.add(audit)
-    db.commit()
+    
     db.refresh(doc)
     
     return doc

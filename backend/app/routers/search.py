@@ -27,11 +27,15 @@ def search_documents(
     request_id = str(uuid.uuid4())
     start_time = time.perf_counter()
 
+    search_department = payload.department
+    if current_user.role == "read_only" and current_user.department:
+        search_department = current_user.department
+
     results = hybrid_search(
         db=db,
         query=payload.query,
         top_k=payload.top_k,
-        department=payload.department,
+        department=search_department,
         category=payload.category,
         security_groups=[g.name for g in current_user.security_groups]
     )
