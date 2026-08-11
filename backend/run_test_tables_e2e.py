@@ -5,7 +5,6 @@ from app.main import app
 from app.database import SessionLocal
 from app.models.schemas import Document
 
-client = TestClient(app)
 
 def create_table_pdf(filename: str):
     """
@@ -43,90 +42,91 @@ def create_table_pdf(filename: str):
     pdf.output(filename)
 
 def test_tables_e2e():
-    print("=" * 70)
-    print("      RAILMIND LITE - TABLES E2E EVALUATION (DAY 5)")
-    print("=" * 70)
+    with TestClient(app) as client:
+        print("=" * 70)
+        print("      RAILMIND LITE - TABLES E2E EVALUATION (DAY 5)")
+        print("=" * 70)
     
-    # 1. Login
-    login_data = {
-        "username": "docadmin@camrail.net",
-        "password": "docadminpassword"
-    }
-    login_res = client.post("/auth/login", data=login_data)
-    assert login_res.status_code == 200, "Login failed"
-    token = login_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    # 2. Create PDF
-    pdf_filename = "test_table_tarif.pdf"
-    create_table_pdf(pdf_filename)
-    
-    # 3. Upload Document
-    print(f"\n[Step 1] Uploading table document '{pdf_filename}'...")
-    with open(pdf_filename, "rb") as f:
-        upload_res = client.post(
-            "/documents",
-            headers=headers,
-            files={"file": (pdf_filename, f, "application/pdf")},
-            data={"title": "Tarifs Gares", "department": "Commercial", "category": "Tarification", "version": "1.0"}
-        )
-    assert upload_res.status_code == 200, f"Upload failed: {upload_res.text}"
-    doc_id = upload_res.json()["id"]
-    
-    # Wait for indexing
-    db = SessionLocal()
-    max_wait = 15
-    start_wait = time.time()
-    while time.time() - start_wait < max_wait:
-        doc = db.query(Document).filter(Document.id == doc_id).first()
-        if doc and doc.status == "indexed":
-            break
-        time.sleep(0.5)
+        # 1. Login
+        login_data = {
+            "username": "docadmin@camrail.net",
+            "password": "docadminpassword"
+        }
+        login_res = client.post("/auth/login", data=login_data)
+        assert login_res.status_code == 200, "Login failed"
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
         
-    doc = db.query(Document).filter(Document.id == doc_id).first()
-    assert doc and doc.status == "indexed", "Document indexing failed or timed out"
-    print(f"-> Indexed successfully (ID: {doc_id})")
-    
-    # 4. Activate Document
-    act_res = client.post(f"/documents/{doc_id}/activate", headers=headers)
-    assert act_res.status_code == 200
-    
-    # 5. Query the Assistant for data inside the table
-    query = "Quel est le tarif standard pour la Gare de Ngaoundéré ?"
-    print(f"\n[Step 2] Querying assistant: '{query}'")
-    print("         (Waiting for LLM generation...)")
-    
-    q_payload = {"query": query}
-    res = client.post("/assistant/query", headers=headers, json=q_payload, timeout=90.0)
-    assert res.status_code == 200, "Assistant query failed"
-    data = res.json()
-    
-    print(f"-> Result:")
-    print(f"   * Confidence: {data['confidence']}")
-    print(f"   * Answer: {data['answer']}")
-    
-    # Verifications
-    assert data['confidence'] in ['high', 'medium'], "Confidence should be good for exact table match"
-    assert "15000" in data['answer'] or "15 000" in data['answer'], "The exact price 15000 FCFA should be in the generated answer"
-    
-    # Check citations for Markdown table format
-    citations = data.get("citations", [])
-    assert citations, "Must have citations"
-    
-    found_table_format = False
-    for cit in citations:
-        # Check for pipe characters which indicate markdown table
-        if "|" in cit["excerpt"]:
-            found_table_format = True
-            break
+        # 2. Create PDF
+        pdf_filename = "test_table_tarif.pdf"
+        create_table_pdf(pdf_filename)
+        
+        # 3. Upload Document
+        print(f"\n[Step 1] Uploading table document '{pdf_filename}'...")
+        with open(pdf_filename, "rb") as f:
+            upload_res = client.post(
+                "/documents",
+                headers=headers,
+                files={"file": (pdf_filename, f, "application/pdf")},
+                data={"title": "Tarifs Gares", "department": "Commercial", "category": "Tarification", "version": "1.0"}
+            )
+        assert upload_res.status_code == 200, f"Upload failed: {upload_res.text}"
+        doc_id = upload_res.json()["id"]
+        
+        # Wait for indexing
+        db = SessionLocal()
+        max_wait = 15
+        start_wait = time.time()
+        while time.time() - start_wait < max_wait:
+            doc = db.query(Document).filter(Document.id == doc_id).first()
+            if doc and doc.status == "indexed":
+                break
+            time.sleep(0.5)
             
-    assert found_table_format, "Citation excerpt did not contain a Markdown table '|' character."
-    
-    print("\n-> Success! Table data successfully extracted, searched, and parsed by LLM.")
-    
-    print("\n" + "=" * 70)
-    print("        ALL TABLE E2E TESTS COMPLETED SUCCESSFULLY! (1/1 PASSED)")
-    print("=" * 70)
+        doc = db.query(Document).filter(Document.id == doc_id).first()
+        assert doc and doc.status == "indexed", "Document indexing failed or timed out"
+        print(f"-> Indexed successfully (ID: {doc_id})")
+        
+        # 4. Activate Document
+        act_res = client.post(f"/documents/{doc_id}/activate", headers=headers)
+        assert act_res.status_code == 200
+        
+        # 5. Query the Assistant for data inside the table
+        query = "Quel est le tarif standard pour la Gare de Ngaoundéré ?"
+        print(f"\n[Step 2] Querying assistant: '{query}'")
+        print("         (Waiting for LLM generation...)")
+        
+        q_payload = {"query": query}
+        res = client.post("/assistant/query", headers=headers, json=q_payload, timeout=90.0)
+        assert res.status_code == 200, "Assistant query failed"
+        data = res.json()
+        
+        print(f"-> Result:")
+        print(f"   * Confidence: {data['confidence']}")
+        print(f"   * Answer: {data['answer']}")
+        
+        # Verifications
+        assert data['confidence'] in ['high', 'medium'], "Confidence should be good for exact table match"
+        assert "15000" in data['answer'] or "15 000" in data['answer'], "The exact price 15000 FCFA should be in the generated answer"
+        
+        # Check citations for Markdown table format
+        citations = data.get("citations", [])
+        assert citations, "Must have citations"
+        
+        found_table_format = False
+        for cit in citations:
+            # Check for pipe characters which indicate markdown table
+            if "|" in cit["excerpt"]:
+                found_table_format = True
+                break
+                
+        assert found_table_format, "Citation excerpt did not contain a Markdown table '|' character."
+        
+        print("\n-> Success! Table data successfully extracted, searched, and parsed by LLM.")
+        
+        print("\n" + "=" * 70)
+        print("        ALL TABLE E2E TESTS COMPLETED SUCCESSFULLY! (1/1 PASSED)")
+        print("=" * 70)
 
 if __name__ == "__main__":
     test_tables_e2e()
