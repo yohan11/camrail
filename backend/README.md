@@ -1,24 +1,74 @@
 # CAMRAIL RailMind Lite - Backend
 
-## Deployment with Docker Compose
+## Démarrage Rapide pour la Démo (Local)
 
-To run the full backend environment (API + PostgreSQL), make sure you have Docker Desktop installed. 
+### 1. Prérequis
+- **Python 3.12+**
+- **PostgreSQL** avec l'extension `pgvector` activée (ou utilisez Docker).
+- **Ollama** installé localement avec le modèle par défaut téléchargé (`llama3.2:3b` ou celui défini dans `.env`).
+- *(Optionnel)* **Tesseract OCR** pour démontrer le fallback OCR.
 
-> [!NOTE]
-> **Ollama (Local LLM)** is NOT containerized in this setup to maintain maximum GPU performance. It must be running directly on your host machine (Windows/Mac). The API container connects to it via `host.docker.internal:11434`. (For Linux hosts, you might need to add `extra_hosts` to the docker-compose file).
+### 2. Commandes de lancement
+Exécutez ces commandes dans l'ordre à la racine du dossier `backend` :
 
-### Steps to Run:
+```bash
+# 1. Configurer l'environnement (Ajuster DATABASE_URL si besoin)
+cp env.example .env
 
-1. Build and start the containers in detached mode:
-   ```bash
-   docker compose up -d
-   ```
+# 2. Installer les dépendances
+pip install -r requirements.txt
 
-2. Check the API logs to ensure it started successfully and ran the database migrations:
-   ```bash
-   docker compose logs -f api
-   ```
+# 3. Mettre à jour la base de données (Schémas)
+alembic upgrade head
 
-3. The API is now available at `http://localhost:8000`. You can access the automatic documentation at `http://localhost:8000/docs`.
+# 4. Préparer l'environnement de démo (Création des comptes et documents)
+python seed_demo.py
 
-4. The database is automatically seeded on startup with default users and security groups.
+# 5. Lancer l'API
+uvicorn app.main:app --reload
+```
+
+L'API est maintenant disponible sur `http://localhost:8000` et la documentation interactive sur `http://localhost:8000/docs`.
+
+### 3. Comptes de Démo
+
+Ces comptes sont automatiquement créés par le script de reset :
+
+- **Administrateur (Vue globale)** :
+  - Email : `admin@camrail.net`
+  - Mot de passe : `adminpassword`
+- **Gestionnaire Documentaire (Vue globale)** :
+  - Email : `docadmin@camrail.net`
+  - Mot de passe : `docadminpassword`
+- **Utilisateur Standard (Restreint au département "Formation")** :
+  - Email : `readonly@camrail.net`
+  - Mot de passe : `readonlypassword`
+
+---
+
+## 🚨 BOUTON PANIQUE : Reset Rapide 🚨
+
+En cas de problème pendant la répétition ou la démo (données corrompues, documents supprimés par erreur), voici la séquence magique pour repartir d'un environnement propre en 30 secondes :
+
+**Si vous utilisez PostgreSQL localement :**
+```bash
+dropdb railmind && createdb railmind && alembic upgrade head && python seed_demo.py
+```
+
+**Si vous utilisez Docker Compose :**
+```bash
+docker compose down -v && docker compose up -d && docker compose exec api python seed_demo.py
+```
+
+---
+
+## Déploiement avec Docker Compose (Optionnel)
+
+Si vous préférez lancer l'API et la base de données via Docker :
+
+> **Note :** Ollama n'est pas conteneurisé pour préserver l'accélération GPU. L'API Docker communiquera avec votre Ollama local via `host.docker.internal:11434`.
+
+```bash
+docker compose up -d
+docker compose logs -f api
+```

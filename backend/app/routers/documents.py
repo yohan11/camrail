@@ -43,6 +43,12 @@ async def upload_document(
 
     # 2. Read and validate file size
     contents = await file.read()
+    if not contents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le fichier est vide."
+        )
+        
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(contents) > max_bytes:
         raise HTTPException(
@@ -180,6 +186,14 @@ def get_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document non trouvé"
         )
+        
+    if current_user.role == "read_only" and current_user.department:
+        if doc.department != current_user.department:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Accès refusé. Le document n'appartient pas à votre département."
+            )
+            
     return doc
 
 
