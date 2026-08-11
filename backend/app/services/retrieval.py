@@ -24,7 +24,7 @@ def hybrid_search(
     top_k: int = 5,
     department: Optional[str] = None,
     category: Optional[str] = None,
-    security_group: Optional[str] = None
+    security_groups: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Performs hybrid search (vector similarity + PostgreSQL full-text search)
@@ -43,8 +43,14 @@ def hybrid_search(
         base_filter.append(Document.department == department)
     if category:
         base_filter.append(Document.category == category)
-    if security_group:
-        base_filter.append(DocumentChunk.security_group == security_group)
+    if security_groups is not None:
+        if not security_groups:
+            # Safely fail if user has no authorized security groups
+            return []
+        
+        # Clean architecture: filter chunks by the document's assigned security groups
+        from app.models.schemas import SecurityGroup
+        base_filter.append(Document.security_groups.any(SecurityGroup.name.in_(security_groups)))
 
     # 2. Vector search (Top 8 by cosine distance)
     distance_expr = DocumentChunk.embedding.cosine_distance(query_emb).label("distance")

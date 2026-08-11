@@ -1,8 +1,56 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float, Date, func
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Text,
+    Float,
+    Date,
+    Table,
+    func
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from pgvector.sqlalchemy import Vector
 from app.database import Base
+# Many-to-many relationship between users and security groups
+user_security_groups = Table(
+    "user_security_groups",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "security_group_id",
+        Integer,
+        ForeignKey("security_groups.id", ondelete="CASCADE"),
+        primary_key=True
+    ),
+)
+
+# Many-to-many relationship between documents and security groups
+document_security_groups = Table(
+    "document_security_groups",
+    Base.metadata,
+    Column("document_id", Integer, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "security_group_id",
+        Integer,
+        ForeignKey("security_groups.id", ondelete="CASCADE"),
+        primary_key=True
+    ),
+)
+
+class SecurityGroup(Base):
+    __tablename__ = "security_groups"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, index=True, nullable=False)
+    description = Column(String(255), nullable=True)
+
+    # Relationships
+    users = relationship("User", secondary=user_security_groups, back_populates="security_groups")
+    documents = relationship("Document", secondary=document_security_groups, back_populates="security_groups")
 
 class User(Base):
     __tablename__ = "users"
@@ -18,6 +66,7 @@ class User(Base):
     # Relationships
     uploaded_documents = relationship("Document", back_populates="uploader")
     audit_events = relationship("AuditEvent", back_populates="actor")
+    security_groups = relationship("SecurityGroup", secondary=user_security_groups, back_populates="users")
 
 
 class Document(Base):
@@ -41,6 +90,7 @@ class Document(Base):
     pages = relationship("DocumentPage", back_populates="document", cascade="all, delete-orphan")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
     referenced_rules = relationship("Rule", back_populates="source_document")
+    security_groups = relationship("SecurityGroup", secondary=document_security_groups, back_populates="documents")
 
 
 class DocumentPage(Base):
@@ -87,6 +137,10 @@ class RdaQuery(Base):
     query_text = Column(Text, nullable=False)
     results_count = Column(Integer, nullable=False, default=0)
     duration_ms = Column(Integer, nullable=False, default=0)
+    confidence = Column(String(50), nullable=True)
+    model_name = Column(String(100), nullable=True)
+    citation_count = Column(Integer, nullable=True, default=0)
+    abstained = Column(Boolean, nullable=True, default=False)
     created_at = Column(DateTime, server_default=func.now())
     
     # Relationships

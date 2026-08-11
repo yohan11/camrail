@@ -85,6 +85,8 @@ def index_document(document_id: int, db: Session) -> int:
 
     chunk_index = 0
     created_count = 0
+    
+    fallback_security_group = doc.security_groups[0].name if doc.security_groups else "default"
 
     for page in pages:
         page_text = (page.extracted_text or "").strip()
@@ -119,7 +121,7 @@ def index_document(document_id: int, db: Session) -> int:
                 search_vector=func.to_tsvector("french", piece),
                 metadata_json=metadata_json,
                 section=section,
-                security_group="default",
+                security_group=fallback_security_group,
                 content_hash=content_hash
             )
             db.add(chunk_obj)

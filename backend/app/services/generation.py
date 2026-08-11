@@ -28,8 +28,8 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     elif vector_distance < 0.5:
         # Distance cosinus faible = très similaire sémantiquement (seuil de départ)
         confidence = "high"
-    elif vector_distance < 0.75:
-        # Distance moyenne (seuil ajusté après test manuel : tarte tatin donne ~0.79)
+    elif vector_distance < settings.RAG_MIN_CONFIDENCE:
+        # Distance moyenne (seuil configurable)
         confidence = "medium"
     else:
         # Distance élevée = aucun rapport sémantique réel
@@ -64,10 +64,14 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         user_message += f"Extrait {i} (source : {title}, page {page}) :\n{excerpt}\n\n"
         
         citations.append({
+            "document_id": res.get("document_id", 0),
             "document_title": title,
+            "document_version": res.get("document_version", "1.0"),
             "page_start": page,
             "page_end": res.get("page_end", page),
-            "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt
+            "section": res.get("section"),
+            "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt,
+            "score": res.get("score")
         })
         
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."

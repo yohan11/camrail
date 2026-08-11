@@ -7,10 +7,14 @@ class AssistantQueryRequest(BaseModel):
     category: Optional[str] = Field(None, description="Optional filter by category")
 
 class CitationItem(BaseModel):
+    document_id: int
     document_title: str
+    document_version: str
     page_start: int
     page_end: int
+    section: Optional[str] = None
     excerpt: str
+    score: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
 

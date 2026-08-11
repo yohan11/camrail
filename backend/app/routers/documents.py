@@ -27,6 +27,7 @@ async def upload_document(
     department: str = Form(...),
     version: str = Form("1.0"),
     effective_date: Optional[str] = Form(None),
+    security_groups: List[str] = Form(["default"]),
     current_user: User = Depends(RoleChecker(["admin", "document_admin"])),
     db: Session = Depends(get_db)
 ):
@@ -78,7 +79,13 @@ async def upload_document(
             except Exception:
                 pass
 
-    # 6. Create initial document record with status "processing"
+    # 6. Fetch Security Groups
+    from app.models.schemas import SecurityGroup
+    groups = db.query(SecurityGroup).filter(SecurityGroup.name.in_(security_groups)).all()
+    if not groups:
+        groups = db.query(SecurityGroup).filter(SecurityGroup.name == "default").all()
+
+    # 7. Create initial document record with status "processing"
     doc = Document(
         title=title,
         version=version,
@@ -90,11 +97,12 @@ async def upload_document(
         checksum=checksum,
         uploaded_by=current_user.id
     )
+    doc.security_groups = groups
     db.add(doc)
     db.commit()
     db.refresh(doc)
 
-    # 7. Extract document pages and index chunks
+    # 8. Extract document pages and index chunks
     try:
         extracted_pages = process_document(saved_path, ext)
         for page_info in extracted_pages:
@@ -114,7 +122,7 @@ async def upload_document(
         # Failure during extraction or indexing sets status to failed
         doc.status = "failed"
 
-    # 8. Log audit event
+    # 9. Log audit event
     audit = AuditEvent(
         actor_user_id=current_user.id,
         action="upload_document",
