@@ -35,13 +35,24 @@ def assistant_query(
     if current_user.role == "read_only" and current_user.department:
         search_department = current_user.department
         
+    # Heuristique simple (PoC, pas un vrai NER) pour extraire un nom de document
+    import re
+    document_title_hint = None
+    match = re.search(r"(?i)document\s+([a-zA-Z0-9_\-\.]+\.(?:pdf|docx))", payload.query)
+    if not match:
+        match = re.search(r"(?i)selon le document\s+([a-zA-Z0-9_\-\.]+)", payload.query)
+    
+    if match:
+        document_title_hint = match.group(1).strip()
+
     search_results = hybrid_search(
         db=db,
         query=payload.query,
         top_k=5,
         department=search_department,
         category=payload.category,
-        security_groups=user_security_groups
+        security_groups=user_security_groups,
+        document_title_hint=document_title_hint
     )
 
     # 2. Generate answer

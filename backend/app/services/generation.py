@@ -83,7 +83,9 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         {"role": "user", "content": user_message}
     ],
     "stream": False,
-    "options": {"temperature": 0.2, "num_predict": 150}
+    # Augmente num_predict à 400 (compromis entre complétude de la réponse et vitesse sur CPU)
+    # pour éviter que les réponses soient tronquées au milieu d'une phrase.
+    "options": {"temperature": 0.2, "num_predict": 400}
 }
 
     try:

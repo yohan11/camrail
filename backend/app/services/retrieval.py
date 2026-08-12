@@ -24,12 +24,14 @@ def hybrid_search(
     top_k: int = 5,
     department: Optional[str] = None,
     category: Optional[str] = None,
-    security_groups: Optional[List[str]] = None
+    security_groups: Optional[List[str]] = None,
+    document_title_hint: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Performs hybrid search (vector similarity + PostgreSQL full-text search)
     fused with Reciprocal Rank Fusion (RRF, k=60).
     Only considers active documents.
+    If document_title_hint is provided, restricts search to documents containing the hint.
     """
     if not query or not query.strip():
         return []
@@ -51,6 +53,21 @@ def hybrid_search(
         # Clean architecture: filter chunks by the document's assigned security groups
         from app.models.schemas import SecurityGroup
         base_filter.append(Document.security_groups.any(SecurityGroup.name.in_(security_groups)))
+
+    # Apply document_title_hint filter if provided
+    if document_title_hint:
+        import logging
+        logger = logging.getLogger(__name__)
+        # Check if any active document actually matches this hint
+        matching_docs_count = db.query(Document).filter(
+            *base_filter,
+            Document.title.ilike(f"%{document_title_hint}%")
+        ).count()
+        if matching_docs_count > 0:
+            base_filter.append(Document.title.ilike(f"%{document_title_hint}%"))
+            logger.info(f"Applying document_title_hint filter for: {document_title_hint}")
+        else:
+            logger.warning(f"document_title_hint '{document_title_hint}' did not match any active documents. Falling back to global search.")
 
     # 2. Vector search (Top 8 by cosine distance)
     distance_expr = DocumentChunk.embedding.cosine_distance(query_emb).label("distance")
