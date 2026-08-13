@@ -87,14 +87,30 @@ def extract_pdf(file_path: str) -> List[Dict[str, Any]]:
     pages_data = []
     with pdfplumber.open(file_path) as pdf:
         for idx, page in enumerate(pdf.pages, start=1):
-            raw_text = page.extract_text() or ""
-            tables = page.extract_tables() or []
-            
+            tables = page.find_tables()
             table_markdowns = []
+            table_bboxes = []
+            
             for t in tables:
-                md = _format_table_as_markdown(t)
+                md = _format_table_as_markdown(t.extract())
                 if md:
                     table_markdowns.append(md)
+                    table_bboxes.append(t.bbox)
+            
+            if table_bboxes:
+                def not_within_bboxes(obj):
+                    if "x0" not in obj or "top" not in obj or "x1" not in obj or "bottom" not in obj:
+                        return True
+                    obj_x0, obj_top, obj_x1, obj_bottom = obj["x0"], obj["top"], obj["x1"], obj["bottom"]
+                    for (x0, top, x1, bottom) in table_bboxes:
+                        if not (obj_x1 <= x0 or obj_x0 >= x1 or obj_bottom <= top or obj_top >= bottom):
+                            return False
+                    return True
+                
+                filtered_page = page.filter(not_within_bboxes)
+                raw_text = filtered_page.extract_text() or ""
+            else:
+                raw_text = page.extract_text() or ""
             
             parts = []
             if raw_text.strip():

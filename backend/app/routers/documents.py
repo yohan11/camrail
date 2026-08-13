@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -326,3 +327,27 @@ def retry_document_processing(
     db.refresh(doc)
     
     return doc
+
+@router.get("/{document_id}/file")
+def get_document_file(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Serve the original document file."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document non trouvé")
+        
+    if not doc.file_url or not os.path.exists(doc.file_url):
+        raise HTTPException(status_code=404, detail="Fichier original non trouvé sur le serveur")
+        
+    # Check access rights
+    if current_user.role == "read_only":
+        user_groups = {g.id for g in current_user.security_groups}
+        doc_groups = {g.id for g in doc.security_groups}
+        if not user_groups.intersection(doc_groups):
+             raise HTTPException(status_code=403, detail="Accès refusé")
+    
+    filename = os.path.basename(doc.file_url)
+    return FileResponse(doc.file_url, filename=f"{doc.title}{os.path.splitext(filename)[1]}")
