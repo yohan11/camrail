@@ -29,6 +29,7 @@ async def upload_document(
     version: str = Form("1.0"),
     effective_date: Optional[str] = Form(None),
     security_groups: List[str] = Form(["default"]),
+    initial_status: str = Form("indexed"),
     current_user: User = Depends(RoleChecker(["admin", "document_admin"])),
     db: Session = Depends(get_db)
 ):
@@ -124,7 +125,7 @@ async def upload_document(
 
         # Generate chunk embeddings and tsvectors
         index_document(doc.id, db)
-        doc.status = "indexed"
+        doc.status = initial_status if initial_status in ["indexed", "active"] else "indexed"
     except Exception as e:
         # Failure during extraction or indexing sets status to failed
         doc.status = "failed"
@@ -210,10 +211,10 @@ def activate_document(
             detail="Document non trouvé"
         )
     
-    if doc.status != "indexed":
+    if doc.status not in ["indexed", "archived"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Seuls les documents avec le statut 'indexed' peuvent être activés."
+            detail="Seuls les documents avec le statut 'indexed' ou 'archived' peuvent être activés."
         )
     
     doc.status = "active"
@@ -226,6 +227,42 @@ def activate_document(
         entity_type="document",
         entity_id=str(doc.id),
         details={"title": doc.title, "new_status": "active"}
+    )
+    
+    db.refresh(doc)
+    
+    return doc
+
+
+@router.post("/{id}/archive", response_model=DocumentResponse)
+def archive_document(
+    id: int,
+    current_user: User = Depends(RoleChecker(["admin", "document_admin"])),
+    db: Session = Depends(get_db)
+):
+    doc = db.query(Document).filter(Document.id == id).first()
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document non trouvé"
+        )
+    
+    if doc.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Seuls les documents avec le statut 'active' peuvent être archivés."
+        )
+    
+    doc.status = "archived"
+    db.commit()
+    
+    log_audit_event(
+        db=db,
+        actor_user_id=current_user.id,
+        action="archive_document",
+        entity_type="document",
+        entity_id=str(doc.id),
+        details={"title": doc.title, "new_status": "archived"}
     )
     
     db.refresh(doc)
