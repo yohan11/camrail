@@ -2,50 +2,30 @@ import os
 import json
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.schemas import Document, DocumentChunk, User
-from fastapi.testclient import TestClient
-from app.main import app
+from app.models.schemas import Document, DocumentChunk
 
 def run_diagnostic():
     db = SessionLocal()
     report = {}
     try:
-        # Check user
-        user = db.query(User).filter(User.email == "docadmin@camrail.net").first()
-        report['user'] = {'email': user.email, 'role': user.role, 'security_groups': [g.name for g in user.security_groups]}
-
-        client = TestClient(app)
+        doc = db.query(Document).filter(Document.title.ilike("%Consigne%RH%04%")).first()
+        if not doc:
+            doc = db.query(Document).filter(Document.title.ilike("%Consigne RH 04%")).first()
         
-        # Login
-        login_resp = client.post(
-            "/auth/login",
-            data={"username": "docadmin@camrail.net", "password": "docadminpassword"}
-        )
-        if login_resp.status_code != 200:
-            report['error'] = "Login failed"
+        if doc:
+            chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).all()
+            report['content'] = []
+            for c in chunks:
+                report['content'].append(c.content)
         else:
-            token = login_resp.json()["access_token"]
-            headers = {"Authorization": f"Bearer {token}"}
-            
-            # Query
-            query_text = "a quoi sert l'heritage en java"
-            resp = client.post("/assistant/query", headers=headers, json={"query": query_text})
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                report['assistant_query_result'] = {
-                    'confidence': data.get('confidence'),
-                    'answer': data.get('answer')[:100] + "...",
-                    'citations_count': len(data.get('citations', [])),
-                    'citations': [c.get('document_title') for c in data.get('citations', [])]
-                }
-            else:
-                report['assistant_query_result'] = f"Error: {resp.status_code} - {resp.text}"
+            report['error'] = "Document not found"
 
     finally:
         db.close()
         
-    print(json.dumps(report, indent=2))
+    with open("doc_content.txt", "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+    print("Done")
 
 if __name__ == "__main__":
     run_diagnostic()

@@ -1,0 +1,5 @@
+{
+  "content": [
+    "REGLEMENTATION DU TRAVAIL ET TEMPS DE REPOS\nLe repos minimum entre deux services est de douze heures. Cette regle est strictement appliquee a\nl ensemble du personnel roulant et des agents de conduite de CAMRAIL pour garantir la securite\ndes circulations ferroviaires."
+  ]
+}
