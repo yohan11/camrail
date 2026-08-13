@@ -31,13 +31,18 @@ def search_documents(
     if current_user.role == "read_only" and current_user.department:
         search_department = current_user.department
 
+    if current_user.role in ["admin", "document_admin"]:
+        user_security_groups = None
+    else:
+        user_security_groups = [group.name for group in current_user.security_groups]
+
     results = hybrid_search(
         db=db,
         query=payload.query,
         top_k=payload.top_k,
         department=search_department,
         category=payload.category,
-        security_groups=[g.name for g in current_user.security_groups]
+        security_groups=user_security_groups
     )
 
     duration_ms = int((time.perf_counter() - start_time) * 1000)

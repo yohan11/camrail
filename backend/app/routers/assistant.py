@@ -27,8 +27,11 @@ def assistant_query(
     request_id = str(uuid.uuid4())
     start_time = time.perf_counter()
 
-    # 1. Retrieve chunks with user's authorized security groups
-    user_security_groups = [group.name for group in current_user.security_groups]
+    # 1. Retrieve chunks with user's authorized security groups (bypass for admins)
+    if current_user.role in ["admin", "document_admin"]:
+        user_security_groups = None
+    else:
+        user_security_groups = [group.name for group in current_user.security_groups]
     
     # Simple department-based access restriction for PoC
     search_department = payload.department

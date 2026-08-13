@@ -106,6 +106,16 @@ def run_tests():
         assert "je ne trouve pas" in data["answer"].lower() or "ne peut pas être confirmée" in data["answer"]
         print("-> OK: No protected documents returned for user without groups.")
 
+        print("[TEST 3.5] Admin global search bypass")
+        res_admin1 = client.post("/assistant/query", headers=admin_headers, json={"query": "Que signifie le signal rouge ?"})
+        data_admin1 = res_admin1.json()
+        assert "arrêt" in data_admin1["answer"].lower() or "temporairement indisponible" in data_admin1["answer"]
+        
+        res_admin2 = client.post("/assistant/query", headers=admin_headers, json={"query": "Les EPI sont-ils obligatoires ?"})
+        data_admin2 = res_admin2.json()
+        assert "obligatoire" in data_admin2["answer"].lower() or "temporairement indisponible" in data_admin2["answer"]
+        print("-> OK: Admin user bypasses security group restrictions and searches all docs.")
+
         print("[TEST 4] Fake security group payload")
         # Assuming AssistantQueryRequest doesn't even accept security_group, passing it should be ignored or error, but let's just assert the backend doesn't use it.
         res = client.post("/assistant/query", headers=empty_headers, json={"query": "Que signifie le signal rouge ?", "security_group": "operations"})

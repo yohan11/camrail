@@ -2,80 +2,46 @@ import os
 import json
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.schemas import Document, DocumentChunk
+from app.models.schemas import Document, DocumentChunk, User
+from fastapi.testclient import TestClient
+from app.main import app
 
 def run_diagnostic():
     db = SessionLocal()
     report = {}
     try:
-        # A. État du document
-        doc = db.query(Document).filter(Document.title.ilike("%Formation_Java%")).first()
-        if doc:
-            report['document'] = {
-                'exists': True,
-                'id': doc.id,
-                'title': doc.title,
-                'status': doc.status,
-                'department': doc.department,
-                'category': doc.category,
-                'security_groups': [sg.name for sg in doc.security_groups]
-            }
-        else:
-            report['document'] = {'exists': False}
-            print(json.dumps(report, indent=2))
-            return
-            
-        # B & C. Extraction & Chunks
-        chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).all()
-        report['chunks'] = {
-            'count': len(chunks),
-            'heritage_mention': False,
-            'heritage_chunks': []
-        }
-        
-        for c in chunks:
-            if 'heritage' in c.content.lower() or 'héritage' in c.content.lower():
-                report['chunks']['heritage_mention'] = True
-                report['chunks']['heritage_chunks'].append(c.content[:100] + "...")
-                
-        # D. Embeddings
-        report['embeddings'] = {
-            'all_have_embeddings': all(c.embedding is not None for c in chunks) if chunks else False,
-            'embedding_dim': len(chunks[0].embedding) if chunks and chunks[0].embedding else None
-        }
-        
-        # E. Résultat hybrid_search() direct test
-        from app.models.schemas import User
+        # Check user
         user = db.query(User).filter(User.email == "docadmin@camrail.net").first()
-        if user:
-            report['user'] = {
-                'email': user.email,
-                'role': user.role,
-                'department': user.department,
-                'security_groups': [sg.name for sg in user.security_groups]
-            }
-        else:
-            report['user'] = {'exists': False}
+        report['user'] = {'email': user.email, 'role': user.role, 'security_groups': [g.name for g in user.security_groups]}
 
-        from app.services.retrieval import hybrid_search
-        query_text = "a quoi sert l'heritage en java"
+        client = TestClient(app)
         
-        # Test exact behavior of assistant_query
-        try:
-            results_auth = hybrid_search(
-                db=db, 
-                query=query_text, 
-                top_k=5,
-                security_groups=report['user'].get('security_groups', [])
-            )
-            report['hybrid_search_with_auth'] = [{
-                'doc_title': r.get('document_title'),
-                'score': r.get('score'),
-                'vector_distance': r.get('vector_distance')
-            } for r in results_auth]
-        except Exception as e:
-            report['hybrid_search_with_auth'] = f"Error: {str(e)}"
+        # Login
+        login_resp = client.post(
+            "/auth/login",
+            data={"username": "docadmin@camrail.net", "password": "docadminpassword"}
+        )
+        if login_resp.status_code != 200:
+            report['error'] = "Login failed"
+        else:
+            token = login_resp.json()["access_token"]
+            headers = {"Authorization": f"Bearer {token}"}
             
+            # Query
+            query_text = "a quoi sert l'heritage en java"
+            resp = client.post("/assistant/query", headers=headers, json={"query": query_text})
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                report['assistant_query_result'] = {
+                    'confidence': data.get('confidence'),
+                    'answer': data.get('answer')[:100] + "...",
+                    'citations_count': len(data.get('citations', [])),
+                    'citations': [c.get('document_title') for c in data.get('citations', [])]
+                }
+            else:
+                report['assistant_query_result'] = f"Error: {resp.status_code} - {resp.text}"
+
     finally:
         db.close()
         
