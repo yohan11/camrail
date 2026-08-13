@@ -7,7 +7,8 @@ import pytz
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.schemas import User, Document, RdaQuery, AuditEvent
-from app.schemas.dashboard import DashboardSummary
+from app.schemas.dashboard import DashboardSummary, DashboardQueryItem, DashboardAuditItem
+from typing import List
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -59,3 +60,44 @@ def get_dashboard_summary(
         confidence_breakdown=confidence_breakdown,
         recent_audit_count=recent_audit_count
     )
+
+@router.get("/details/queries", response_model=List[DashboardQueryItem])
+def get_dashboard_queries(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get recent queries for dashboard detail view."""
+    queries = db.query(RdaQuery, User).join(User, RdaQuery.user_id == User.id)\
+        .order_by(RdaQuery.created_at.desc()).limit(limit).all()
+        
+    return [
+        DashboardQueryItem(
+            id=q.RdaQuery.id,
+            query_text=q.RdaQuery.query_text,
+            confidence=q.RdaQuery.confidence,
+            created_at=q.RdaQuery.created_at.isoformat(),
+            user_email=q.User.email,
+            duration_ms=q.RdaQuery.duration_ms
+        ) for q in queries
+    ]
+
+@router.get("/details/audit", response_model=List[DashboardAuditItem])
+def get_dashboard_audit(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get recent audit events for dashboard detail view."""
+    events = db.query(AuditEvent, User).outerjoin(User, AuditEvent.actor_user_id == User.id)\
+        .order_by(AuditEvent.created_at.desc()).limit(limit).all()
+        
+    return [
+        DashboardAuditItem(
+            id=e.AuditEvent.id,
+            action=e.AuditEvent.action,
+            entity_type=e.AuditEvent.entity_type,
+            created_at=e.AuditEvent.created_at.isoformat(),
+            user_email=e.User.email if e.User else "Système"
+        ) for e in events
+    ]

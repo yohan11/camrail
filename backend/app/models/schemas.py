@@ -189,6 +189,7 @@ class ConversationMessage(Base):
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
     confidence = Column(String(50), nullable=True)
+    citations = Column(Text, nullable=True)  # JSON-serialized citations array
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships

@@ -1,5 +1,6 @@
 import time
 import uuid
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -13,7 +14,7 @@ from app.services.retrieval import hybrid_search
 from app.services.generation import generate_answer
 from app.services.audit import log_audit_event
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 router = APIRouter(prefix="/assistant", tags=["Assistant"])
 
@@ -31,6 +32,7 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: str
+    citations: Optional[List[Dict[str, Any]]] = None
 
 @router.get("/conversations", response_model=List[ConversationResponse])
 def get_conversations(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
@@ -46,7 +48,23 @@ def get_conversation_messages(conversation_id: int, current_user=Depends(get_cur
         raise HTTPException(status_code=404, detail="Conversation not found")
     
     messages = db.query(ConversationMessage).filter(ConversationMessage.conversation_id == conversation_id).order_by(ConversationMessage.created_at.asc()).all()
-    return [{"id": m.id, "role": m.role, "content": m.content, "created_at": m.created_at.isoformat()} for m in messages]
+    
+    result = []
+    for m in messages:
+        cits = None
+        if m.citations:
+            try:
+                cits = json.loads(m.citations)
+            except:
+                pass
+        result.append({
+            "id": m.id,
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat(),
+            "citations": cits
+        })
+    return result
 
 @router.delete("/conversations/{conversation_id}")
 def delete_conversation(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
@@ -129,11 +147,11 @@ def assistant_query(
     conv_id = payload.conversation_id
     if not conv_id:
         title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
-        new_conv = Conversation(user_id=current_user.id, title=title)
-        db.add(new_conv)
+        conv = Conversation(user_id=current_user.id, title=title)
+        db.add(conv)
         db.commit()
-        db.refresh(new_conv)
-        conv_id = new_conv.id
+        db.refresh(conv)
+        conv_id = conv.id
     else:
         # Verify conversation belongs to user
         conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
@@ -148,11 +166,18 @@ def assistant_query(
     )
     db.add(user_msg)
     
-    # Add assistant response
+    # Update conversation title if this is the first message
+    if not conv.title:
+        title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
+        conv.title = title
+    
+    # Save assistant message
     asst_msg = ConversationMessage(
         conversation_id=conv_id,
         role="assistant",
         content=gen_result.get("answer", ""),
+        confidence=gen_result.get("confidence"),
+        citations=json.dumps([c.model_dump() for c in citations]) if citations else None
     )
     db.add(asst_msg)
     
