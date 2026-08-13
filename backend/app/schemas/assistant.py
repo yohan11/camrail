@@ -21,6 +21,7 @@ class CitationItem(BaseModel):
 
 class AssistantQueryResponse(BaseModel):
     request_id: str
+    conversation_id: Optional[int] = None
     query: str
     answer: str
     confidence: str

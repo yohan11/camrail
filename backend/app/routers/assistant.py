@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -174,6 +175,7 @@ def assistant_query(
     return AssistantQueryResponse(
         request_id=request_id,
         conversation_id=conv_id,
+        query=payload.query,
         answer=gen_result.get("answer", ""),
         confidence=gen_result.get("confidence", "insufficient"),
         citations=citations,
