@@ -55,24 +55,49 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
 
     user_message = f"Question : {query}\n\n"
     citations = []
+    seen_sources = set()
+    filtered_results = []
     
-    for i, res in enumerate(search_results, start=1):
+    # 1. Filter irrelevant results based on vector_distance
+    for res in search_results:
+        v_dist = res.get("vector_distance")
+        # vector_distance 0.0 is perfect match, high distance is bad.
+        # Threshold: RAG_MIN_CONFIDENCE (e.g. 0.75 means distance < 0.75 is required)
+        if v_dist is not None and v_dist >= settings.RAG_MIN_CONFIDENCE:
+            continue
+        filtered_results.append(res)
+        
+    if not filtered_results:
+        return {
+            "answer": "Je ne trouve pas cette information dans les documents indexés.",
+            "confidence": "insufficient",
+            "citations": []
+        }
+    
+    # 2. Build citations and LLM context
+    for i, res in enumerate(filtered_results, start=1):
         title = res.get("document_title", "Document inconnu")
         page = res.get("page_start", "?")
         excerpt = res.get("excerpt", "")
         
         user_message += f"Extrait {i} (source : {title}, page {page}) :\n{excerpt}\n\n"
         
-        citations.append({
-            "document_id": res.get("document_id", 0),
-            "document_title": title,
-            "document_version": res.get("document_version", "1.0"),
-            "page_start": page,
-            "page_end": res.get("page_end", page),
-            "section": res.get("section"),
-            "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt,
-            "score": res.get("score")
-        })
+        # Deduplicate citations by document_id and page
+        doc_id = res.get("document_id", 0)
+        citation_key = (doc_id, page)
+        
+        if citation_key not in seen_sources:
+            seen_sources.add(citation_key)
+            citations.append({
+                "document_id": doc_id,
+                "document_title": title,
+                "document_version": res.get("document_version", "1.0"),
+                "page_start": page,
+                "page_end": res.get("page_end", page),
+                "section": res.get("section"),
+                "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt,
+                "score": res.get("score")
+            })
         
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."
 

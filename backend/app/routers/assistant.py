@@ -6,13 +6,56 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models.schemas import User, RdaQuery
+from app.models.schemas import User, RdaQuery, Rule, DocumentChunk, Document, Conversation, ConversationMessage
 from app.schemas.assistant import AssistantQueryRequest, AssistantQueryResponse, CitationItem
 from app.services.retrieval import hybrid_search
 from app.services.generation import generate_answer
 from app.services.audit import log_audit_event
+from pydantic import BaseModel
+from typing import Optional, List
 
 router = APIRouter(prefix="/assistant", tags=["Assistant"])
+
+class QueryRequest(BaseModel):
+    query: str
+    conversation_id: Optional[int] = None
+    
+class ConversationResponse(BaseModel):
+    id: int
+    title: str
+    created_at: str
+    
+class MessageResponse(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: str
+
+@router.get("/conversations", response_model=List[ConversationResponse])
+def get_conversations(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retrieve all conversations for the current user."""
+    convs = db.query(Conversation).filter(Conversation.user_id == current_user.id).order_by(Conversation.updated_at.desc()).all()
+    return [{"id": c.id, "title": c.title or "Nouvelle conversation", "created_at": c.created_at.isoformat()} for c in convs]
+
+@router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
+def get_conversation_messages(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Retrieve all messages for a specific conversation."""
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == current_user.id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    messages = db.query(ConversationMessage).filter(ConversationMessage.conversation_id == conversation_id).order_by(ConversationMessage.created_at.asc()).all()
+    return [{"id": m.id, "role": m.role, "content": m.content, "created_at": m.created_at.isoformat()} for m in messages]
+
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete a conversation."""
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == current_user.id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    db.delete(conv)
+    db.commit()
+    return {"status": "deleted"}
 
 @router.post("/query", response_model=AssistantQueryResponse, status_code=status.HTTP_200_OK)
 def assistant_query(
@@ -80,6 +123,40 @@ def assistant_query(
         abstained=(gen_result.get("confidence") == "insufficient")
     )
     db.add(rda_query)
+    
+    # 5. Handle conversation saving
+    conv_id = payload.conversation_id
+    if not conv_id:
+        title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
+        new_conv = Conversation(user_id=current_user.id, title=title)
+        db.add(new_conv)
+        db.commit()
+        db.refresh(new_conv)
+        conv_id = new_conv.id
+    else:
+        # Verify conversation belongs to user
+        conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+            
+    # Add user message
+    user_msg = ConversationMessage(
+        conversation_id=conv_id,
+        role="user",
+        content=payload.query
+    )
+    db.add(user_msg)
+    
+    # Add assistant response
+    asst_msg = ConversationMessage(
+        conversation_id=conv_id,
+        role="assistant",
+        content=gen_result.get("answer", ""),
+    )
+    db.add(asst_msg)
+    
+    # Update conversation timestamp
+    db.query(Conversation).filter(Conversation.id == conv_id).update({"updated_at": func.now()})
     db.commit()
 
     log_audit_event(
@@ -96,9 +173,10 @@ def assistant_query(
 
     return AssistantQueryResponse(
         request_id=request_id,
-        query=payload.query,
+        conversation_id=conv_id,
         answer=gen_result.get("answer", ""),
         confidence=gen_result.get("confidence", "insufficient"),
         citations=citations,
         duration_ms=duration_ms
     )
+    

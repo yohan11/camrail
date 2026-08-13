@@ -42,6 +42,9 @@ def seed_database(db: Session):
                 }
             ]
             
+            # Get default group
+            default_group = db.query(schemas.SecurityGroup).filter_by(name="default").first()
+
             for user_data in initial_users:
                 hashed_pwd = hash_password(user_data["password"])
                 db_user = schemas.User(
@@ -52,6 +55,8 @@ def seed_database(db: Session):
                     department=user_data.get("department"),
                     is_active=True
                 )
+                if default_group:
+                    db_user.security_groups.append(default_group)
                 db.add(db_user)
             
             db.commit()

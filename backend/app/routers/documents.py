@@ -62,7 +62,7 @@ async def upload_document(
     if existing_doc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ce document a déjà été uploadé"
+            detail=f"Ce document existe déjà dans RailMind : {existing_doc.title}"
         )
 
     # 4. Save file to storage
