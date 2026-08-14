@@ -5,40 +5,7 @@ from docx import Document as DocxDocument
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
-def _format_table_as_markdown(table: list) -> str:
-    """Converts a 2D list of cells into a clean Markdown table string."""
-    if not table:
-        return ""
-    
-    cleaned_rows = []
-    for row in table:
-        if not row:
-            continue
-        cleaned_rows.append([str(cell or "").replace("\n", " ").strip() for cell in row])
-    
-    if not cleaned_rows:
-        return ""
-    
-    max_cols = max(len(r) for r in cleaned_rows)
-    if max_cols == 0:
-        return ""
-    
-    for r in cleaned_rows:
-        while len(r) < max_cols:
-            r.append("")
-    
-    lines = []
-    # Header row
-    header = "| " + " | ".join(cleaned_rows[0]) + " |"
-    separator = "| " + " | ".join(["---"] * max_cols) + " |"
-    lines.append(header)
-    lines.append(separator)
-    
-    # Body rows
-    for row in cleaned_rows[1:]:
-        lines.append("| " + " | ".join(row) + " |")
-    
-    return "\n".join(lines)
+
 
 
 import logging
@@ -87,38 +54,8 @@ def extract_pdf(file_path: str) -> List[Dict[str, Any]]:
     pages_data = []
     with pdfplumber.open(file_path) as pdf:
         for idx, page in enumerate(pdf.pages, start=1):
-            tables = page.find_tables()
-            table_markdowns = []
-            table_bboxes = []
-            
-            for t in tables:
-                md = _format_table_as_markdown(t.extract())
-                if md:
-                    table_markdowns.append(md)
-                    table_bboxes.append(t.bbox)
-            
-            if table_bboxes:
-                def not_within_bboxes(obj):
-                    if "x0" not in obj or "top" not in obj or "x1" not in obj or "bottom" not in obj:
-                        return True
-                    obj_x0, obj_top, obj_x1, obj_bottom = obj["x0"], obj["top"], obj["x1"], obj["bottom"]
-                    for (x0, top, x1, bottom) in table_bboxes:
-                        if not (obj_x1 <= x0 or obj_x0 >= x1 or obj_bottom <= top or obj_top >= bottom):
-                            return False
-                    return True
-                
-                filtered_page = page.filter(not_within_bboxes)
-                raw_text = filtered_page.extract_text() or ""
-            else:
-                raw_text = page.extract_text() or ""
-            
-            parts = []
-            if raw_text.strip():
-                parts.append(raw_text.strip())
-            if table_markdowns:
-                parts.extend(table_markdowns)
-            
-            full_page_text = "\n\n".join(parts)
+            raw_text = page.extract_text(layout=True) or page.extract_text() or ""
+            full_page_text = raw_text.strip()
             
             # If page text is very sparse (< 20 chars), flag for future OCR
             if len(full_page_text.strip()) < 20:
@@ -164,10 +101,18 @@ def extract_docx(file_path: str) -> List[Dict[str, Any]]:
             t = Table(child, doc)
             table_data = []
             for row in t.rows:
-                table_data.append([cell.text.strip() for cell in row.cells])
-            md = _format_table_as_markdown(table_data)
-            if md:
-                body_elements.append(md)
+                table_data.append([cell.text.replace("\n", " ").strip() for cell in row.cells])
+            
+            if table_data and len(table_data) > 0:
+                max_cols = max(len(r) for r in table_data)
+                md_lines = []
+                header = "| " + " | ".join(table_data[0]) + " |"
+                md_lines.append(header)
+                md_lines.append("|" + "|".join(["---"] * max_cols) + "|")
+                for r in table_data[1:]:
+                    while len(r) < max_cols: r.append("")
+                    md_lines.append("| " + " | ".join(r) + " |")
+                body_elements.append("\n".join(md_lines))
     
     full_text = "\n\n".join(body_elements)
     method = "ocr_needed" if len(full_text.strip()) < 20 else "native"
