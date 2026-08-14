@@ -30,21 +30,35 @@ def chunk_text(text: str, chunk_size_words: int = 350, overlap_words: int = 50) 
     """
     if not text or not text.strip():
         return []
-    words = text.split()
-    if len(words) <= chunk_size_words:
-        return [text.strip()]
+    
+    # Split by double newline to preserve paragraphs/tables as atomic blocks
+    blocks = [b.strip() for b in text.split('\n\n') if b.strip()]
     
     chunks = []
-    start = 0
-    step = max(1, chunk_size_words - overlap_words)
-    while start < len(words):
-        chunk_words = words[start:start + chunk_size_words]
-        chunk_str = " ".join(chunk_words).strip()
-        if chunk_str:
-            chunks.append(chunk_str)
-        if start + chunk_size_words >= len(words):
-            break
-        start += step
+    current_chunk_words = []
+    current_word_count = 0
+    
+    for block in blocks:
+        block_words = block.split()
+        block_word_count = len(block_words)
+        
+        # If adding this block exceeds the limit and we already have content
+        if current_word_count + block_word_count > chunk_size_words and current_word_count > 0:
+            chunks.append(" ".join(current_chunk_words).strip())
+            # Keep overlap words from the end of current_chunk_words
+            overlap = current_chunk_words[-overlap_words:] if overlap_words > 0 else []
+            current_chunk_words = overlap + block_words
+            current_word_count = len(current_chunk_words)
+        else:
+            current_chunk_words.extend(block_words)
+            current_word_count += block_word_count
+            
+        # If a single block is huge, we might just let it be one slightly larger chunk
+        # or we could split it here if it's exceptionally large. For tables, keeping it intact is better.
+        
+    if current_chunk_words:
+        chunks.append(" ".join(current_chunk_words).strip())
+        
     return chunks
 
 
