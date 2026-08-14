@@ -111,8 +111,8 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
                 
             genai.configure(api_key=settings.GEMINI_API_KEY)
             
-            # Use gemini-1.5-flash as the default model
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Use gemini-flash-latest as the default model
+            model = genai.GenerativeModel('gemini-flash-latest')
             
             prompt = f"{system_prompt}\n\n{user_message}"
             
