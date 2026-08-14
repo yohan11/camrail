@@ -51,7 +51,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         "Si les extraits ne permettent pas de répondre clairement à la question, dis explicitement que l'information "
         "ne peut pas être confirmée par les documents indexés. "
         "Réponds dans la langue de la question. Reste concis, deux ou trois phrases maximum. N'utilise "
-        "jamais de connaissance générale extérieure."
+        "jamais de connaissance générale extérieure. N'utilise pas de symboles mathématiques spéciaux comme les signes dollar ($) pour tes équations."
     )
 
     user_message = f"Question : {query}\n\n"
