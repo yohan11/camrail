@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     MAX_WEEKLY_HOURS: int = 48
     MAX_UPLOAD_MB: int = 25
     
+    LLM_PROVIDER: str = "ollama"  # "ollama", "gemini", or "openai"
+    GEMINI_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2:3b"
     RAG_MIN_CONFIDENCE: float = 0.75

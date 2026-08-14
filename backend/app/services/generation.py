@@ -101,43 +101,78 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
             })
         
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."
-
-    payload = {
-    "model": settings.OLLAMA_MODEL,
-    "messages": [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message}
-    ],
-    "stream": False,
-    # Augmente num_predict à 400 (compromis entre complétude de la réponse et vitesse sur CPU)
-    # pour éviter que les réponses soient tronquées au milieu d'une phrase.
-    "options": {"temperature": 0.0, "num_predict": 400}
-}
-
-    try:
-        with httpx.Client(timeout=180.0) as client:
-            response = client.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload)
-            response.raise_for_status()
-            data = response.json()
-            answer_text = data.get("message", {}).get("content", "").strip()
+    
+    # --- GEMINI PROVIDER ---
+    if settings.LLM_PROVIDER.lower() == "gemini":
+        try:
+            import google.generativeai as genai
+            if not settings.GEMINI_API_KEY:
+                raise ValueError("GEMINI_API_KEY non configurée")
+                
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            
+            # Use gemini-1.5-flash as the default model
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            
+            prompt = f"{system_prompt}\n\n{user_message}"
+            
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.0,
+                    max_output_tokens=400,
+                )
+            )
             
             return {
-                "answer": answer_text,
+                "answer": response.text.strip(),
                 "confidence": confidence,
                 "citations": citations
             }
+        except Exception as e:
+            logger.error(f"Erreur avec Gemini API: {e}")
+            return {
+                "answer": f"Erreur avec Gemini API. Vérifiez votre clé. (Détail: {e})",
+                "confidence": "insufficient",
+                "citations": citations
+            }
             
-    except httpx.ConnectError as e:
-        logger.error(f"ConnectError: Ollama ne semble pas lancé - vérifier qu'il tourne en arrière-plan. {e}")
-        return {
-            "answer": "Le service de génération est temporairement indisponible. Voici les passages trouvés dans les documents, à consulter directement.",
-            "confidence": "insufficient",
-            "citations": citations
+    # --- OLLAMA PROVIDER (Default / Fallback) ---
+    else:
+        payload = {
+            "model": settings.OLLAMA_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            "stream": False,
+            "options": {"temperature": 0.0, "num_predict": 400}
         }
-    except Exception as e:
-        logger.error(f"Erreur lors de la génération avec Ollama: {e}")
-        return {
-            "answer": "Le service de génération est temporairement indisponible. Voici les passages trouvés dans les documents, à consulter directement.",
-            "confidence": "insufficient",
-            "citations": citations
-        }
+
+        try:
+            with httpx.Client(timeout=180.0) as client:
+                response = client.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload)
+                response.raise_for_status()
+                data = response.json()
+                answer_text = data.get("message", {}).get("content", "").strip()
+                
+                return {
+                    "answer": answer_text,
+                    "confidence": confidence,
+                    "citations": citations
+                }
+                
+        except httpx.ConnectError as e:
+            logger.error(f"ConnectError: Ollama ne semble pas lancé. {e}")
+            return {
+                "answer": "Le service de génération est temporairement indisponible. Voici les extraits.",
+                "confidence": "insufficient",
+                "citations": citations
+            }
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération avec Ollama: {e}")
+            return {
+                "answer": "Erreur interne lors de la génération de réponse.",
+                "confidence": "insufficient",
+                "citations": citations
+            }
