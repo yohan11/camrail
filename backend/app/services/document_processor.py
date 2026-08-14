@@ -55,6 +55,21 @@ def extract_pdf(file_path: str) -> List[Dict[str, Any]]:
     with pdfplumber.open(file_path) as pdf:
         for idx, page in enumerate(pdf.pages, start=1):
             raw_text = page.extract_text(layout=True) or page.extract_text() or ""
+            
+            # Extract tables as markdown
+            try:
+                tables = page.extract_tables()
+                if tables:
+                    table_md = "\n"
+                    for table in tables:
+                        for row in table:
+                            clean_row = [str(cell).replace("\n", " ").strip() if cell else "" for cell in row]
+                            table_md += "| " + " | ".join(clean_row) + " |\n"
+                        table_md += "\n"
+                    raw_text += table_md
+            except Exception:
+                pass
+                
             full_page_text = raw_text.strip()
             
             # If page text is very sparse (< 20 chars), flag for future OCR
