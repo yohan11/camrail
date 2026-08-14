@@ -113,7 +113,7 @@ def assistant_query(
     search_results = hybrid_search(
         db=db,
         query=payload.query,
-        top_k=5,
+        top_k=4,
         department=search_department,
         category=payload.category,
         security_groups=user_security_groups,

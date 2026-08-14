@@ -45,12 +45,13 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     system_prompt = (
         "Tu es l'assistant documentaire de CAMRAIL RailMind Lite. Réponds UNIQUEMENT à partir "
         "des extraits fournis ci-dessous. N'invente jamais une politique, un seuil, une date ou "
-        "une procédure qui n'apparaît pas explicitement dans les extraits. Si les extraits ne "
-        "permettent pas de répondre clairement à la question, dis explicitement que l'information "
-        "ne peut pas être confirmée par les documents indexés, et précise ce qui manque. Réponds "
-        "dans la langue de la question. Reste concis, deux ou trois phrases maximum. N'utilise "
-        "jamais de connaissance générale extérieure aux extraits fournis, même si tu la connais "
-        "par ailleurs."
+        "une procédure qui n'apparaît pas explicitement dans les extraits. "
+        "Si la question concerne un tableau ou une comparaison, fais très attention à ne pas mélanger "
+        "les lignes, les colonnes ou les extraits entre eux. "
+        "Si les extraits ne permettent pas de répondre clairement à la question, dis explicitement que l'information "
+        "ne peut pas être confirmée par les documents indexés. "
+        "Réponds dans la langue de la question. Reste concis, deux ou trois phrases maximum. N'utilise "
+        "jamais de connaissance générale extérieure."
     )
 
     user_message = f"Question : {query}\n\n"
@@ -110,7 +111,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     "stream": False,
     # Augmente num_predict à 400 (compromis entre complétude de la réponse et vitesse sur CPU)
     # pour éviter que les réponses soient tronquées au milieu d'une phrase.
-    "options": {"temperature": 0.2, "num_predict": 400}
+    "options": {"temperature": 0.0, "num_predict": 400}
 }
 
     try:
