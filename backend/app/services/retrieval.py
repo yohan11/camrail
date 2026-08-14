@@ -136,8 +136,6 @@ def hybrid_search(
                 meta = {}
 
         excerpt = chunk.content or ""
-        if len(excerpt) > 300:
-            excerpt = excerpt[:300] + "..."
 
         is_full_doc = meta.get("is_full_document_citation", False)
 
