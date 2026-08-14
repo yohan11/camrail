@@ -350,4 +350,12 @@ def get_document_file(
              raise HTTPException(status_code=403, detail="Accès refusé")
     
     filename = os.path.basename(doc.file_url)
-    return FileResponse(doc.file_url, filename=f"{doc.title}{os.path.splitext(filename)[1]}")
+    ext = os.path.splitext(filename)[1].lower()
+    media_type = "application/pdf" if ext == ".pdf" else "application/octet-stream"
+    
+    return FileResponse(
+        path=doc.file_url, 
+        filename=f"{doc.title}{ext}",
+        media_type=media_type,
+        content_disposition_type="inline"
+    )
