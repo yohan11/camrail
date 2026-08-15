@@ -353,9 +353,17 @@ def get_document_file(
     ext = os.path.splitext(filename)[1].lower()
     media_type = "application/pdf" if ext == ".pdf" else "application/octet-stream"
     
-    return FileResponse(
-        path=doc.file_url, 
-        filename=f"{doc.title}{ext}",
+    # Use standard Response to strictly control headers and avoid IDM interception
+    from fastapi.responses import Response
+    with open(doc.file_url, "rb") as f:
+        content = f.read()
+        
+    return Response(
+        content=content,
         media_type=media_type,
-        content_disposition_type="inline"
+        headers={
+            "Content-Disposition": "inline",
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": "nosniff"
+        }
     )
