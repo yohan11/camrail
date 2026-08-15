@@ -352,11 +352,18 @@ def get_document_file(
     filename = os.path.basename(doc.file_url)
     ext = os.path.splitext(filename)[1].lower()
     
+    if ext == ".pdf":
+        media_type = "application/pdf"
+    elif ext in [".doc", ".docx"]:
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        media_type = "application/octet-stream"
+    
     # Pour la scalabilité (ne pas charger tout le fichier en RAM), on utilise FileResponse
-    # On force "application/pdf" et on retire le filename pour éviter que le navigateur ou IDM force le téléchargement
+    # On retire le filename pour éviter que le navigateur ou IDM force le téléchargement
     return FileResponse(
         path=doc.file_url,
-        media_type="application/pdf",
+        media_type=media_type,
         content_disposition_type="inline",
         headers={
             "Cache-Control": "no-cache",
