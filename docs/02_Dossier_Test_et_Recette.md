@@ -35,11 +35,14 @@ L'ensemble des tests ci-dessous ont été validés sur le système en développe
 ## 3. Détails des points critiques validés
 
 ### 3.1 Dédoublonnage des documents (TR-14)
+
 La déduplication a été confirmée en testant l'envoi de deux fichiers PDF identiques mais renommés différemment. Le système ne se fie pas au nom du fichier, mais génère un *checksum* unique lors de la lecture des octets du fichier. Le deuxième upload a été bloqué au niveau de la base de données, évitant ainsi l'indexation redondante.
 
 ### 3.2 Confidentialité croisée RAG / Profil (TR-10)
+
 Un compte utilisateur avec le département "Ressources Humaines" (Read Only) a tenté de trouver une information technique via le chat. La base vectorielle, configurée pour appliquer un filtre de département et de sécurité avant même de calculer la pertinence, a retourné zéro résultat. Le LLM s'est donc abstenu de répondre, confirmant l'imperméabilité des données entre directions.
 
 ### 3.3 Abstention et Confiance (TR-04 & TR-07)
+
 Testé en posant la question : *"Quelle est la recette de la tarte aux pommes ?"*
 Résultat : L'IA répond qu'elle ne trouve pas l'information dans les documents indexés, et le niveau de confiance affiché est "Information insuffisante" (Badge Rouge). L'intégrité de l'assistant métier est ainsi garantie.
