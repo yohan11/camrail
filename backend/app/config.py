@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     RAG_MIN_CONFIDENCE: float = 0.75
     
     TESSERACT_CMD_PATH: str = ""
+    
+    # Microsoft SSO Configuration
+    MICROSOFT_CLIENT_ID: str = ""
+    MICROSOFT_CLIENT_SECRET: str = ""
+    MICROSOFT_TENANT_ID: str = "common"
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
