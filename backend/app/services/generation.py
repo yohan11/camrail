@@ -51,19 +51,19 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         "Si les extraits ne permettent pas de répondre clairement à la question, dis explicitement que l'information "
         "ne peut pas être confirmée par les documents indexés. "
         "Réponds dans la langue de la question. Reste concis, deux ou trois phrases maximum. N'utilise "
-        "jamais de connaissance générale extérieure. N'utilise pas de symboles mathématiques spéciaux comme les signes dollar ($) pour tes équations."
+        "jamais de connaissance générale extérieure. N'utilise pas de symboles mathématiques spéciaux comme les signes dollar ($) pour tes équations. "
+        "IMPORTANT : Si tu utilises un extrait pour construire ta réponse, tu DOIS obligatoirement inclure son numéro à la fin de la phrase correspondante sous la forme [1], [2], etc. "
+        "N'inclus QUE les numéros des extraits que tu as réellement utilisés."
     )
 
     user_message = f"Question : {query}\n\n"
-    citations = []
+    all_citations = []
     seen_sources = set()
     filtered_results = []
     
     # 1. Filter irrelevant results based on vector_distance
     for res in search_results:
         v_dist = res.get("vector_distance")
-        # vector_distance 0.0 is perfect match, high distance is bad.
-        # Threshold: RAG_MIN_CONFIDENCE (e.g. 0.75 means distance < 0.75 is required)
         if v_dist is not None and v_dist >= settings.RAG_MIN_CONFIDENCE:
             continue
         filtered_results.append(res)
@@ -83,25 +83,51 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         
         user_message += f"Extrait {i} (source : {title}, page {page}) :\n{excerpt}\n\n"
         
-        # Deduplicate citations by document_id and page
         doc_id = res.get("document_id", 0)
         citation_key = (doc_id, page)
         
-        if citation_key not in seen_sources:
-            seen_sources.add(citation_key)
-            citations.append({
-                "document_id": doc_id,
-                "document_title": title,
-                "document_version": res.get("document_version", "1.0"),
-                "page_start": page,
-                "page_end": res.get("page_end", page),
-                "section": res.get("section"),
-                "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt,
-                "score": res.get("score")
-            })
+        # We need to keep track of ALL chunks so the LLM index matches the citation index
+        # But we also want to deduplicate frontend citations.
+        # Let's map the LLM index `i` to the deduplicated citation.
+        all_citations.append({
+            "llm_index": i,
+            "document_id": doc_id,
+            "document_title": title,
+            "document_version": res.get("document_version", "1.0"),
+            "page_start": page,
+            "page_end": res.get("page_end", page),
+            "section": res.get("section"),
+            "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt,
+            "score": res.get("score")
+        })
         
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."
     
+    def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
+        import re
+        # Find all [X] in the answer
+        matches = re.findall(r'\[(\d+)\]', answer_text)
+        used_indices = {int(m) for m in matches}
+        
+        # If no citations were used or found, return empty (or maybe return all deduplicated as fallback?)
+        # Let's strictly return only the used ones. If none, return empty list.
+        if not used_indices:
+            return []
+            
+        final_citations = []
+        seen_front = set()
+        for cit in all_citations:
+            if cit["llm_index"] in used_indices:
+                key = (cit["document_id"], cit["page_start"])
+                if key not in seen_front:
+                    seen_front.add(key)
+                    # Remove internal llm_index for the frontend
+                    cit_copy = cit.copy()
+                    del cit_copy["llm_index"]
+                    final_citations.append(cit_copy)
+                    
+        return final_citations
+
     # --- GEMINI PROVIDER ---
     if settings.LLM_PROVIDER.lower() == "gemini":
         try:
@@ -110,8 +136,6 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
                 raise ValueError("GEMINI_API_KEY non configurée")
                 
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            
-            # Use gemini-flash-lite-latest as the default model
             model = genai.GenerativeModel('gemini-flash-lite-latest')
             
             prompt = f"{system_prompt}\n\n{user_message}"
@@ -124,17 +148,20 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
                 )
             )
             
+            answer_text = response.text.strip()
+            final_citations = extract_and_filter_citations(answer_text, all_citations)
+            
             return {
-                "answer": response.text.strip(),
+                "answer": answer_text,
                 "confidence": confidence,
-                "citations": citations
+                "citations": final_citations
             }
         except Exception as e:
             logger.error(f"Erreur avec Gemini API: {e}")
             return {
                 "answer": f"Erreur avec Gemini API. Vérifiez votre clé. (Détail: {e})",
                 "confidence": "insufficient",
-                "citations": citations
+                "citations": []
             }
             
     # --- OLLAMA PROVIDER (Default / Fallback) ---
@@ -148,31 +175,33 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
             "stream": False,
             "options": {"temperature": 0.0, "num_predict": 400}
         }
-
+        
         try:
-            with httpx.Client(timeout=180.0) as client:
-                response = client.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload)
+            ollama_url = f"{settings.OLLAMA_BASE_URL}/api/chat"
+            with httpx.Client(timeout=60.0) as client:
+                response = client.post(ollama_url, json=payload)
                 response.raise_for_status()
                 data = response.json()
-                answer_text = data.get("message", {}).get("content", "").strip()
                 
-                return {
-                    "answer": answer_text,
-                    "confidence": confidence,
-                    "citations": citations
-                }
-                
-        except httpx.ConnectError as e:
-            logger.error(f"ConnectError: Ollama ne semble pas lancé. {e}")
+            answer_text = data.get("message", {}).get("content", "").strip()
+            final_citations = extract_and_filter_citations(answer_text, all_citations)
+            
             return {
-                "answer": "Le service de génération est temporairement indisponible. Voici les extraits.",
+                "answer": answer_text,
+                "confidence": confidence,
+                "citations": final_citations
+            }
+        except httpx.HTTPError as e:
+            logger.error(f"Erreur HTTP avec Ollama: {e}")
+            return {
+                "answer": f"Erreur de communication avec le modèle local. (Détail: {e})",
                 "confidence": "insufficient",
-                "citations": citations
+                "citations": []
             }
         except Exception as e:
-            logger.error(f"Erreur lors de la génération avec Ollama: {e}")
+            logger.error(f"Erreur inattendue avec Ollama: {e}")
             return {
-                "answer": "Erreur interne lors de la génération de réponse.",
+                "answer": f"Erreur inattendue lors de la génération. (Détail: {e})",
                 "confidence": "insufficient",
-                "citations": citations
+                "citations": []
             }
