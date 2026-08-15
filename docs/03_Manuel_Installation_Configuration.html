@@ -1,0 +1,140 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>03_Manuel_Installation_Configuration.md</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 30px; color: #222; }
+    h1 { color: #8B0000; border-bottom: 2px solid #8B0000; padding-bottom: 10px; }
+    h2 { color: #B22222; margin-top: 30px; }
+    h3 { color: #CD5C5C; }
+    table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #f8f9fa; font-weight: bold; color: #333; }
+    pre { background-color: #f1f3f5; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    code { font-family: Consolas, monospace; background-color: #f1f3f5; padding: 2px 5px; border-radius: 3px; font-size: 13px; }
+    blockquote { border-left: 4px solid #8B0000; margin-left: 0; padding-left: 15px; color: #555; background-color: #fdfdfd; padding: 10px; }
+</style>
+</head><body><h1>Manuel d'Installation et de Configuration</h1>
+<p>Ce document s'adresse à l'équipe technique chargée du déploiement de l'application <strong>RailMind Lite</strong> sur les serveurs de CAMRAIL.</p>
+<h2>1. Prérequis Système</h2>
+<h3>Infrastructure matérielle (Recommandée)</h3>
+<ul>
+<li><strong>CPU :</strong> 4 Cœurs</li>
+<li><strong>RAM :</strong> 8 Go minimum (pour l'exécution locale de modèles et le traitement des embeddings).</li>
+<li><strong>Stockage :</strong> 50 Go (SSD recommandé pour la base de données PostgreSQL).</li>
+</ul>
+<h3>Dépendances Logicielles</h3>
+<ul>
+<li><strong>Système d'exploitation :</strong> Linux (Ubuntu 22.04 LTS) ou Windows Server.</li>
+<li><strong>Base de données :</strong> PostgreSQL (Version 15+) avec l'extension <code>pgvector</code> installée.</li>
+<li><strong>Backend :</strong> Python 3.10+</li>
+<li><strong>Frontend :</strong> Node.js 18+</li>
+</ul>
+<h2>2. Étape 1 : Installation de la Base de Données</h2>
+<p>RailMind Lite nécessite PostgreSQL et son extension vectorielle pour le RAG.</p>
+<ol>
+<li>
+<p>Installer PostgreSQL.</p>
+</li>
+<li>
+<p>Installer l'extension <code>pgvector</code> :</p>
+<p><strong>Option A : Serveur Linux (Recommandé)</strong></p>
+<pre><code class="language-bash">sudo apt install postgresql-15-pgvector
+</code></pre>
+<p><strong>Option B : Serveur Windows</strong>
+Sur Windows, <code>pgvector</code> ne s'installe pas avec une simple ligne de commande.</p>
+<ul>
+<li>Allez sur le GitHub officiel : <code>https://github.com/pgvector/pgvector</code></li>
+<li>Téléchargez les binaires pré-compilés pour Windows.</li>
+<li>Copiez les fichiers <code>.dll</code> et <code>.sql</code> dans les dossiers <code>lib</code> et <code>share/extension</code> de votre dossier d'installation PostgreSQL (<code>C:\\Program Files\\PostgreSQL\\15\\</code>).</li>
+</ul>
+</li>
+<li>
+<p>Créer la base de données (Valable pour Linux et Windows) :</p>
+<pre><code class="language-sql">CREATE DATABASE camrail_rda;
+\c camrail_rda
+CREATE EXTENSION vector;
+</code></pre>
+</li>
+</ol>
+<h2>3. Étape 2 : Configuration du Backend (API)</h2>
+<p>Le backend gère l'intelligence artificielle, l'authentification et l'indexation.</p>
+<ol>
+<li>
+<p><strong>Cloner le code source :</strong>
+Placez-vous dans le répertoire du serveur et récupérez le dossier <code>backend</code>.</p>
+</li>
+<li>
+<p><strong>Créer un environnement virtuel Python :</strong></p>
+<pre><code class="language-bash">python3 -m venv venv
+source venv/bin/activate
+</code></pre>
+</li>
+<li>
+<p><strong>Installer les dépendances :</strong></p>
+<pre><code class="language-bash">pip install -r requirements.txt
+</code></pre>
+</li>
+<li>
+<p><strong>Configuration (<code>.env</code>) :</strong>
+Créez un fichier <code>.env</code> à la racine du backend. Voici un exemple complet :</p>
+<pre><code class="language-env"># Base de données
+DATABASE_URL=postgresql://utilisateur:motdepasse@localhost:5432/camrail_rda
+
+# Sécurité
+SECRET_KEY=votre_cle_secrete_generee_aleatoirement
+
+# Configuration LLM (Google Gemini Lite)
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=votre_cle_api_google_ai
+
+# Single Sign-On (Microsoft Active Directory) - Remplir avec les identifiants IT
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT_ID=common
+</code></pre>
+</li>
+<li>
+<p><strong>Initialiser la base de données :</strong>
+Exécuter les migrations automatiques pour créer les tables :</p>
+<pre><code class="language-bash">alembic upgrade head
+</code></pre>
+</li>
+<li>
+<p><strong>Données de démonstration (Seed) :</strong>
+Pour générer l'administrateur par défaut et peupler la base avec les groupes de sécurité :</p>
+<pre><code class="language-bash">python seed_demo.py
+</code></pre>
+</li>
+<li>
+<p><strong>Lancement de l'API :</strong></p>
+<pre><code class="language-bash">uvicorn app.main:app --host 0.0.0.0 --port 8000
+</code></pre>
+</li>
+</ol>
+<h2>4. Étape 3 : Configuration du Frontend (Interface Utilisateur)</h2>
+<ol>
+<li>Naviguer vers le dossier <code>camrail-rda</code>.</li>
+<li><strong>Installer les dépendances Node.js :</strong><pre><code class="language-bash">npm install
+</code></pre>
+</li>
+<li><strong>Configuration de l'environnement :</strong>
+Vérifier ou créer un fichier <code>.env.local</code> contenant l'URL de l'API Backend :<pre><code class="language-env">NEXT_PUBLIC_API_URL=http://votre-serveur-ip:8000/api/v1
+</code></pre>
+</li>
+<li><strong>Compiler et Lancer :</strong><pre><code class="language-bash">npm run build
+npm run start
+</code></pre>
+</li>
+</ol>
+<h2>5. Tests Post-Installation</h2>
+<ol>
+<li>Accédez à l'interface via <code>http://votre-serveur-ip:3000</code>.</li>
+<li>Connectez-vous avec le compte <code>admin@camrail.net</code> (mot de passe par défaut : <code>camrail2026</code>).</li>
+<li>Téléversez un document de test.</li>
+<li>Allez dans l'onglet Assistant et posez une question relative au document pour valider la chaîne de recherche (Embeddings + LLM).</li>
+</ol>
+<h2>6. Surveillance et Maintenance</h2>
+<ul>
+<li><strong>Logs :</strong> Les journaux du backend (<code>uvicorn</code>) afficheront les erreurs de traitement.</li>
+<li><strong>Sauvegarde :</strong> Planifier un dump quotidien de la base <code>camrail_rda</code> (via <code>pg_dump</code>).</li>
+<li><strong>Gestion des doublons :</strong> Le système bloque automatiquement les uploads de fichiers ayant un même hash. En cas d'erreur de checksum, vérifiez l'intégrité du fichier.</li>
+</ul>
+</body></html>

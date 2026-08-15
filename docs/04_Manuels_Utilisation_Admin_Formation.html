@@ -1,0 +1,85 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>04_Manuels_Utilisation_Admin_Formation.md</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 30px; color: #222; }
+    h1 { color: #8B0000; border-bottom: 2px solid #8B0000; padding-bottom: 10px; }
+    h2 { color: #B22222; margin-top: 30px; }
+    h3 { color: #CD5C5C; }
+    table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #f8f9fa; font-weight: bold; color: #333; }
+    pre { background-color: #f1f3f5; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    code { font-family: Consolas, monospace; background-color: #f1f3f5; padding: 2px 5px; border-radius: 3px; font-size: 13px; }
+    blockquote { border-left: 4px solid #8B0000; margin-left: 0; padding-left: 15px; color: #555; background-color: #fdfdfd; padding: 10px; }
+</style>
+</head><body><h1>Manuels Utilisateur, Administrateur et Guide Formateur</h1>
+<p>Ce document compile les instructions nécessaires pour utiliser et administrer RailMind Lite, ainsi que le guide d'acculturation à destination des formateurs CAMRAIL.</p>
+<hr />
+<h2>1. Manuel Utilisateur (Interface et Navigation)</h2>
+<p>L'utilisation de RailMind Lite est conçue pour être aussi simple qu'une conversation, favorisant ainsi son utilisation quotidienne par l'ensemble du personnel.</p>
+<h3>1.1 Se connecter</h3>
+<ul>
+<li>Rendez-vous sur la page d'accueil de l'application.</li>
+<li><strong>Utilisateurs standards :</strong> Cliquez sur le bouton &quot;Se connecter avec Microsoft&quot; pour utiliser vos identifiants d'ordinateur (SSO), ou entrez votre adresse email et votre mot de passe si la connexion classique est requise.</li>
+</ul>
+<h3>1.2 Poser une question à l'Assistant IA</h3>
+<ul>
+<li>Dans le menu latéral (Sidebar), cliquez sur <strong>Nouvelle conversation</strong>.</li>
+<li>Au centre de l'écran, saisissez votre question dans la barre de recherche (ex: <em>&quot;Quelle est la procédure en cas de retard d'un train fret ?&quot;</em>).</li>
+<li><strong>Lire la réponse et vérifier les sources :</strong>
+L'intelligence artificielle rédige sa réponse. Juste en dessous, vous verrez des encarts (Citations) indiquant le titre du document source et la page exacte. Vous pouvez cliquer dessus pour approfondir.</li>
+</ul>
+<h3>1.3 Comprendre le niveau de confiance</h3>
+<p>RailMind Lite évalue lui-même la qualité de sa réponse :</p>
+<ul>
+<li><strong>Vert (Confiance élevée) :</strong> L'IA a trouvé le texte exact dans les documents.</li>
+<li><strong>Jaune (Confiance moyenne) :</strong> L'IA a dû croiser des mots-clés ou le texte n'était pas parfaitement explicite.</li>
+<li><strong>Rouge (Information insuffisante) :</strong> L'IA s'abstient de répondre car vos documents autorisés ne contiennent pas la réponse.</li>
+</ul>
+<h3>1.4 Consulter l'historique</h3>
+<p>Dans la barre latérale gauche (Sidebar), vos anciennes conversations sont listées sous la section <strong>Historique</strong>. Cliquez sur n'importe quel titre pour restaurer le contexte exact de votre discussion passée.</p>
+<hr />
+<h2>2. Manuel Administrateur</h2>
+<p>Le panneau d'administration est réservé aux profils <code>Admin</code> et <code>Document Admin</code>. Il permet de garantir la fiabilité de la base de connaissances.</p>
+<h3>2.1 Gestion Documentaire</h3>
+<ul>
+<li>Allez dans l'onglet <strong>Documents</strong>.</li>
+<li><strong>Ajout d'un document :</strong> Cliquez sur &quot;Téléverser&quot; et sélectionnez un PDF.
+<em>Note sur les doublons :</em> Le système vérifiera l'empreinte mathématique du fichier (Hash). S'il a déjà été téléversé, l'action sera refusée pour éviter de polluer la recherche de l'IA.</li>
+<li><strong>Activation :</strong> Tout nouveau document est en statut <em>Indexé</em>. Vous devez l'éditer et le passer en <em>Actif</em> pour qu'il soit utilisé par l'IA.</li>
+<li><strong>Catégorisation et Sécurité :</strong> Attribuez le document au bon département et aux groupes de sécurité appropriés. Cette étape est cruciale pour le cloisonnement des informations.</li>
+</ul>
+<h3>2.2 Surveiller l'Audit et la Traçabilité</h3>
+<ul>
+<li>Allez dans l'onglet <strong>Tableau de Bord (Dashboard)</strong>.</li>
+<li>Le widget <strong>Sécurité &amp; Audit</strong> vous affiche le journal d'activité (qui s'est connecté, qui a téléchargé quel document, et l'horodatage précis).</li>
+</ul>
+<hr />
+<h2>3. Manuel Formateur (Acculturation à l'IA)</h2>
+<p>Ce module est destiné aux formateurs internes de CAMRAIL pour accompagner le changement lors du déploiement de RailMind Lite.</p>
+<h3>Module 1 : Comprendre RailMind Lite</h3>
+<ul>
+<li><strong>L'objectif :</strong> Expliquer que RailMind n'est pas &quot;ChatGPT&quot; ni un moteur de recherche internet. C'est un assistant métier strictement limité aux procédures internes de CAMRAIL.</li>
+</ul>
+<h3>Module 2 : Poser une bonne question</h3>
+<ul>
+<li><strong>La règle d'or :</strong> Soyez précis.</li>
+<li><em>Mauvais exemple :</em> &quot;Retard de train.&quot;</li>
+<li><em>Bon exemple :</em> &quot;Quelles sont les obligations légales de communication aux passagers si un train voyageur a un retard de plus de 30 minutes ?&quot;</li>
+</ul>
+<h3>Module 3 : Comprendre et vérifier les sources</h3>
+<ul>
+<li>Former les employés à ne pas faire une confiance aveugle à la machine. La responsabilité finale appartient à l'humain.</li>
+<li>La bonne pratique : Toujours lire la citation affichée en bas de la réponse pour s'assurer du contexte.</li>
+</ul>
+<h3>Module 4 : Comprendre les limites de l'IA</h3>
+<ul>
+<li>L'IA ne peut pas deviner une information manquante.</li>
+<li>L'IA ne fait pas de calculs mathématiques complexes ni de prédictions, elle restitue de l'information documentée.</li>
+<li>Expliquer le badge rouge &quot;Information insuffisante&quot;. Ce n'est pas un bug, c'est une sécurité anti-hallucination.</li>
+</ul>
+<h3>Module 5 : Sécurité et confidentialité</h3>
+<ul>
+<li>Assurer le personnel que leurs questions restent en interne (traitement local ou API d'entreprise sécurisée).</li>
+<li>Rappeler que le système filtre automatiquement les documents : ce qu'un employé ne doit pas voir ne lui sera jamais révélé par l'IA.</li>
+</ul>
+</body></html>

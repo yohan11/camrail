@@ -1,0 +1,194 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>02_Dossier_Test_et_Recette.md</title>
+<style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 30px; color: #222; }
+    h1 { color: #8B0000; border-bottom: 2px solid #8B0000; padding-bottom: 10px; }
+    h2 { color: #B22222; margin-top: 30px; }
+    h3 { color: #CD5C5C; }
+    table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background-color: #f8f9fa; font-weight: bold; color: #333; }
+    pre { background-color: #f1f3f5; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    code { font-family: Consolas, monospace; background-color: #f1f3f5; padding: 2px 5px; border-radius: 3px; font-size: 13px; }
+    blockquote { border-left: 4px solid #8B0000; margin-left: 0; padding-left: 15px; color: #555; background-color: #fdfdfd; padding: 10px; }
+</style>
+</head><body><h1>Dossier de Test &amp; Recette : RailMind Lite</h1>
+<h2>1. Objet du document</h2>
+<p>Ce dossier définit les tests de recette de RailMind Lite. Il valide le bon fonctionnement de l'authentification, la recherche RAG, la gestion des sources, les droits, la déduplication et l'historique. La gestion du roulement du personnel est explicitement hors périmètre.</p>
+<h2>2. Matrice des Tests de Validation</h2>
+<p>L'ensemble des tests ci-dessous ont été validés sur le système en développement (Août 2026).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">ID</th>
+<th style="text-align:left">Domaine</th>
+<th style="text-align:left">Action (Scénario de test)</th>
+<th style="text-align:left">Résultat attendu</th>
+<th style="text-align:left">Statut de Recette</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>TR-01</strong></td>
+<td style="text-align:left">Connexion</td>
+<td style="text-align:left">Se connecter avec des identifiants valides</td>
+<td style="text-align:left">Session créée et accès accordé</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-02</strong></td>
+<td style="text-align:left">Sécurité</td>
+<td style="text-align:left">Ouvrir une route protégée sans être connecté</td>
+<td style="text-align:left">Accès refusé (Redirection ou Erreur 401)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-03</strong></td>
+<td style="text-align:left">RAG</td>
+<td style="text-align:left">Poser une question connue</td>
+<td style="text-align:left">Réponse générée et fondée sur le document</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-04</strong></td>
+<td style="text-align:left">Abstention</td>
+<td style="text-align:left">Poser une question hors corpus</td>
+<td style="text-align:left">L'IA indique une &quot;Information insuffisante&quot; et s'abstient d'inventer</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-05</strong></td>
+<td style="text-align:left">Sources</td>
+<td style="text-align:left">Observer les citations sous une réponse</td>
+<td style="text-align:left">Seules les sources pertinentes ayant servi sont affichées</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-06</strong></td>
+<td style="text-align:left">Sources</td>
+<td style="text-align:left">Poser une question couverte par un seul document</td>
+<td style="text-align:left">Une seule source est affichée (Dédoublonnage des citations)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-07</strong></td>
+<td style="text-align:left">Confiance</td>
+<td style="text-align:left">Poser une question sur un sujet non couvert</td>
+<td style="text-align:left">Le badge de confiance ne doit pas être « élevé » (Rouge/Insuffisant)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-08</strong></td>
+<td style="text-align:left">Statut document</td>
+<td style="text-align:left">Interroger l'assistant sur un document inactif</td>
+<td style="text-align:left">Le document n'est pas utilisé par la recherche</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-09</strong></td>
+<td style="text-align:left">Activation</td>
+<td style="text-align:left">Activer un document puis rechercher</td>
+<td style="text-align:left">Le document devient instantanément disponible</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-10</strong></td>
+<td style="text-align:left">Droits</td>
+<td style="text-align:left">Poser la même question (Admin vs ReadOnly)</td>
+<td style="text-align:left">Chaque profil voit seulement la réponse issue des documents qui lui sont autorisés</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-11</strong></td>
+<td style="text-align:left">Admin</td>
+<td style="text-align:left">Faire une recherche globale</td>
+<td style="text-align:left">L'admin accède aux documents de toutes les directions</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-12</strong></td>
+<td style="text-align:left">Upload</td>
+<td style="text-align:left">Téléverser un PDF valide</td>
+<td style="text-align:left">Extraction, création des chunks, embeddings et indexation réussies</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-13</strong></td>
+<td style="text-align:left">Fichier vide</td>
+<td style="text-align:left">Téléverser un fichier non valide</td>
+<td style="text-align:left">Erreur contrôlée et rejet</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-14</strong></td>
+<td style="text-align:left">Doublon</td>
+<td style="text-align:left">Téléverser exactement le même fichier</td>
+<td style="text-align:left">Rejet de l'upload grâce à la vérification d'empreinte SHA-256</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-15</strong></td>
+<td style="text-align:left">Recherche</td>
+<td style="text-align:left">Recherche par mot-clé spécifique</td>
+<td style="text-align:left">Document pertinent retrouvé (Recherche Lexicale)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-16</strong></td>
+<td style="text-align:left">Sémantique</td>
+<td style="text-align:left">Poser une question formulée différemment du texte</td>
+<td style="text-align:left">Passage sémantiquement pertinent retrouvé (pgvector)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-17</strong></td>
+<td style="text-align:left">LLM</td>
+<td style="text-align:left">Poser une question RAG</td>
+<td style="text-align:left">Réponse rapide générée par Gemini Flash Lite avec contexte local</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-18</strong></td>
+<td style="text-align:left">Historique</td>
+<td style="text-align:left">Se déconnecter puis se reconnecter</td>
+<td style="text-align:left">La conversation est conservée dans l'historique</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-19</strong></td>
+<td style="text-align:left">Historique</td>
+<td style="text-align:left">Cliquer sur une ancienne conversation</td>
+<td style="text-align:left">Le bon contexte et les messages précédents sont restaurés</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-20</strong></td>
+<td style="text-align:left">Responsive</td>
+<td style="text-align:left">Utiliser l'application sur un écran étroit</td>
+<td style="text-align:left">Interface utilisable sans cassure majeure (Tailwind CSS)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-21</strong></td>
+<td style="text-align:left">KALATI</td>
+<td style="text-align:left">Vérifier le couplage du système documentaire</td>
+<td style="text-align:left">Le prototype reste autonome (L'absence de KALATI ne bloque pas l'outil)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>TR-22</strong></td>
+<td style="text-align:left">Audit</td>
+<td style="text-align:left">Consulter les traces depuis le tableau de bord</td>
+<td style="text-align:left">Les actions prévues (uploads, questions) sont traçables (ID, Date)</td>
+<td style="text-align:left">✅ Fonctionnel</td>
+</tr>
+</tbody>
+</table>
+<h2>3. Détails des points critiques validés</h2>
+<h3>3.1 Dédoublonnage des documents (TR-14)</h3>
+<p>La déduplication a été confirmée en testant l'envoi de deux fichiers PDF identiques mais renommés différemment. Le système ne se fie pas au nom du fichier, mais génère un <em>checksum</em> unique lors de la lecture des octets du fichier. Le deuxième upload a été bloqué au niveau de la base de données, évitant ainsi l'indexation redondante.</p>
+<h3>3.2 Confidentialité croisée RAG / Profil (TR-10)</h3>
+<p>Un compte utilisateur avec le département &quot;Ressources Humaines&quot; (Read Only) a tenté de trouver une information technique via le chat. La base vectorielle, configurée pour appliquer un filtre de département et de sécurité avant même de calculer la pertinence, a retourné zéro résultat. Le LLM s'est donc abstenu de répondre, confirmant l'imperméabilité des données entre directions.</p>
+<h3>3.3 Abstention et Confiance (TR-04 &amp; TR-07)</h3>
+<p>Testé en posant la question : <em>&quot;Quelle est la recette de la tarte aux pommes ?&quot;</em>
+Résultat : L'IA répond qu'elle ne trouve pas l'information dans les documents indexés, et le niveau de confiance affiché est &quot;Information insuffisante&quot; (Badge Rouge). L'intégrité de l'assistant métier est ainsi garantie.</p>
+</body></html>

@@ -21,10 +21,19 @@ RailMind Lite nécessite PostgreSQL et son extension vectorielle pour le RAG.
 
 1. Installer PostgreSQL.
 2. Installer l'extension `pgvector` :
+   
+   **Option A : Serveur Linux (Recommandé)**
    ```bash
    sudo apt install postgresql-15-pgvector
    ```
-3. Créer la base de données :
+   
+   **Option B : Serveur Windows**
+   Sur Windows, `pgvector` ne s'installe pas avec une simple ligne de commande. 
+   - Allez sur le GitHub officiel : `https://github.com/pgvector/pgvector`
+   - Téléchargez les binaires pré-compilés pour Windows.
+   - Copiez les fichiers `.dll` et `.sql` dans les dossiers `lib` et `share/extension` de votre dossier d'installation PostgreSQL (`C:\\Program Files\\PostgreSQL\\15\\`).
+
+3. Créer la base de données (Valable pour Linux et Windows) :
    ```sql
    CREATE DATABASE camrail_rda;
    \c camrail_rda
