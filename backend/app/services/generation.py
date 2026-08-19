@@ -1,20 +1,91 @@
 import httpx
 import logging
+import re
 from typing import List, Dict, Any
 
 from app.config import settings
+from app.services.connectivity import is_online
 
 logger = logging.getLogger(__name__)
 
+def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
+    # Find all [X] in the answer
+    matches = re.findall(r'\[(\d+)\]', answer_text)
+    used_indices = {int(m) for m in matches}
+    
+    # If no citations were used or found, return empty
+    if not used_indices:
+        return []
+        
+    final_citations = []
+    seen_front = set()
+    for cit in all_citations:
+        if cit["llm_index"] in used_indices:
+            key = (cit["document_id"], cit["page_start"])
+            if key not in seen_front:
+                seen_front.add(key)
+                # Remove internal llm_index for the frontend
+                cit_copy = cit.copy()
+                del cit_copy["llm_index"]
+                final_citations.append(cit_copy)
+                
+    return final_citations
+
+def _generate_with_gemini(system_prompt: str, user_message: str) -> str:
+    """Génère la réponse avec Gemini. Lève une exception explicite en cas d'échec."""
+    import google.generativeai as genai
+    if not settings.GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY non configurée")
+        
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-flash-lite-latest')
+    
+    prompt = f"{system_prompt}\n\n{user_message}"
+    
+    response = model.generate_content(
+        prompt,
+        generation_config=genai.types.GenerationConfig(
+            temperature=0.0,
+            max_output_tokens=400,
+        )
+    )
+    return response.text.strip()
+
+def _generate_with_ollama(system_prompt: str, user_message: str) -> str:
+    """Génère la réponse avec Ollama. Lève une exception explicite en cas d'échec.
+    Note: llama3.2:3b gère mieux les instructions dans un seul bloc que via le rôle 'system'.
+    """
+    # On fusionne les deux dans un seul message user pour une compatibilité maximale avec llama3.2
+    full_prompt = f"{system_prompt}\n\n---\n\n{user_message}"
+    
+    payload = {
+        "model": settings.OLLAMA_MODEL,
+        "messages": [
+            {"role": "user", "content": full_prompt}
+        ],
+        "stream": False,
+        "options": {"temperature": 0.0, "num_predict": 400}
+    }
+    
+    ollama_url = f"{settings.OLLAMA_BASE_URL}/api/chat"
+    with httpx.Client(timeout=180.0) as client:
+        response = client.post(ollama_url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        
+    return data.get("message", {}).get("content", "").strip()
+
 def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Generates a natural language answer based on hybrid_search results using Ollama.
+    Generates a natural language answer based on hybrid_search results.
+    Implémente un basculement automatique entre Gemini (online) et Ollama (offline).
     """
     if not search_results:
         return {
             "answer": "Je ne trouve pas cette information dans les documents indexés.",
             "confidence": "insufficient",
-            "citations": []
+            "citations": [],
+            "provider": None
         }
 
     # Evaluate confidence based on vector distance
@@ -22,24 +93,20 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     vector_distance = top_result.get("vector_distance")
 
     if vector_distance is None:
-        # Trouvé uniquement par le lexical, pas de signal sémantique disponible :
-        # traite comme confiance modérée par défaut, le match lexical reste un signal
         confidence = "medium"
     elif vector_distance < 0.5:
-        # Distance cosinus faible = très similaire sémantiquement (seuil de départ)
         confidence = "high"
     elif vector_distance < settings.RAG_MIN_CONFIDENCE:
-        # Distance moyenne (seuil configurable)
         confidence = "medium"
     else:
-        # Distance élevée = aucun rapport sémantique réel
         confidence = "insufficient"
         
     if confidence == "insufficient":
         return {
             "answer": "Je ne trouve pas cette information dans les documents indexés.",
             "confidence": "insufficient",
-            "citations": []
+            "citations": [],
+            "provider": None
         }
 
     system_prompt = (
@@ -58,7 +125,6 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
 
     user_message = f"Question : {query}\n\n"
     all_citations = []
-    seen_sources = set()
     filtered_results = []
     
     # 1. Filter irrelevant results based on vector_distance
@@ -72,7 +138,8 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         return {
             "answer": "Je ne trouve pas cette information dans les documents indexés.",
             "confidence": "insufficient",
-            "citations": []
+            "citations": [],
+            "provider": None
         }
     
     # 2. Build citations and LLM context
@@ -84,11 +151,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         user_message += f"Extrait {i} (source : {title}, page {page}) :\n{excerpt}\n\n"
         
         doc_id = res.get("document_id", 0)
-        citation_key = (doc_id, page)
         
-        # We need to keep track of ALL chunks so the LLM index matches the citation index
-        # But we also want to deduplicate frontend citations.
-        # Let's map the LLM index `i` to the deduplicated citation.
         all_citations.append({
             "llm_index": i,
             "document_id": doc_id,
@@ -103,105 +166,36 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."
     
-    def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
-        import re
-        # Find all [X] in the answer
-        matches = re.findall(r'\[(\d+)\]', answer_text)
-        used_indices = {int(m) for m in matches}
-        
-        # If no citations were used or found, return empty (or maybe return all deduplicated as fallback?)
-        # Let's strictly return only the used ones. If none, return empty list.
-        if not used_indices:
-            return []
+    # --- AUTOMATIC ROUTER ---
+    answer_text = None
+    provider_used = None
+    
+    if is_online():
+        try:
+            answer_text = _generate_with_gemini(system_prompt, user_message)
+            provider_used = "gemini"
+        except Exception as e:
+            logger.error(f"Gemini indisponible malgré une connexion détectée, bascule sur Ollama en secours. Détail: {e}")
             
-        final_citations = []
-        seen_front = set()
-        for cit in all_citations:
-            if cit["llm_index"] in used_indices:
-                key = (cit["document_id"], cit["page_start"])
-                if key not in seen_front:
-                    seen_front.add(key)
-                    # Remove internal llm_index for the frontend
-                    cit_copy = cit.copy()
-                    del cit_copy["llm_index"]
-                    final_citations.append(cit_copy)
-                    
-        return final_citations
+    # Si offline OU erreur avec Gemini, on passe par Ollama
+    if answer_text is None:
+        try:
+            answer_text = _generate_with_ollama(system_prompt, user_message)
+            provider_used = "ollama"
+        except Exception as e:
+            logger.error(f"Erreur avec Ollama (secours): {e}")
+            return {
+                "answer": "Service temporairement indisponible (erreur locale).",
+                "confidence": "insufficient",
+                "citations": [],
+                "provider": None
+            }
 
-    # --- GEMINI PROVIDER ---
-    if settings.LLM_PROVIDER.lower() == "gemini":
-        try:
-            import google.generativeai as genai
-            if not settings.GEMINI_API_KEY:
-                raise ValueError("GEMINI_API_KEY non configurée")
-                
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-flash-lite-latest')
-            
-            prompt = f"{system_prompt}\n\n{user_message}"
-            
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.0,
-                    max_output_tokens=400,
-                )
-            )
-            
-            answer_text = response.text.strip()
-            final_citations = extract_and_filter_citations(answer_text, all_citations)
-            
-            return {
-                "answer": answer_text,
-                "confidence": confidence,
-                "citations": final_citations
-            }
-        except Exception as e:
-            logger.error(f"Erreur avec Gemini API: {e}")
-            return {
-                "answer": f"Erreur avec Gemini API. Vérifiez votre clé. (Détail: {e})",
-                "confidence": "insufficient",
-                "citations": []
-            }
-            
-    # --- OLLAMA PROVIDER (Default / Fallback) ---
-    else:
-        payload = {
-            "model": settings.OLLAMA_MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            "stream": False,
-            "options": {"temperature": 0.0, "num_predict": 400}
-        }
-        
-        try:
-            ollama_url = f"{settings.OLLAMA_BASE_URL}/api/chat"
-            with httpx.Client(timeout=60.0) as client:
-                response = client.post(ollama_url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                
-            answer_text = data.get("message", {}).get("content", "").strip()
-            final_citations = extract_and_filter_citations(answer_text, all_citations)
-            
-            return {
-                "answer": answer_text,
-                "confidence": confidence,
-                "citations": final_citations
-            }
-        except httpx.HTTPError as e:
-            logger.error(f"Erreur HTTP avec Ollama: {e}")
-            return {
-                "answer": f"Erreur de communication avec le modèle local. (Détail: {e})",
-                "confidence": "insufficient",
-                "citations": []
-            }
-        except Exception as e:
-            logger.error(f"Erreur inattendue avec Ollama: {e}")
-            return {
-                "answer": f"Erreur inattendue lors de la génération. (Détail: {e})",
-                "confidence": "insufficient",
-                "citations": []
-            }
+    final_citations = extract_and_filter_citations(answer_text, all_citations)
+    
+    return {
+        "answer": answer_text,
+        "confidence": confidence,
+        "citations": final_citations,
+        "provider": provider_used
+    }

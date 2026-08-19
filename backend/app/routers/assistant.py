@@ -127,6 +127,8 @@ def assistant_query(
 
     # Build citations list
     citations = [CitationItem(**c) for c in gen_result.get("citations", [])]
+    
+    provider = gen_result.get("provider")
 
     # 3. Save telemetry in RdaQuery
     from app.config import settings
@@ -137,7 +139,7 @@ def assistant_query(
         results_count=len(search_results),
         duration_ms=duration_ms,
         confidence=gen_result.get("confidence"),
-        model_name=settings.OLLAMA_MODEL,
+        model_name=provider if provider else settings.OLLAMA_MODEL,
         citation_count=len(citations),
         abstained=(gen_result.get("confidence") == "insufficient")
     )
@@ -204,6 +206,7 @@ def assistant_query(
         answer=gen_result.get("answer", ""),
         confidence=gen_result.get("confidence", "insufficient"),
         citations=citations,
-        duration_ms=duration_ms
+        duration_ms=duration_ms,
+        provider=gen_result.get("provider")
     )
     

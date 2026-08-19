@@ -27,5 +27,6 @@ class AssistantQueryResponse(BaseModel):
     confidence: str
     citations: List[CitationItem]
     duration_ms: int
+    provider: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
