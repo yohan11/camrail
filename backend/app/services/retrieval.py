@@ -1,3 +1,6 @@
+# © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
+# Utilisation en production strictement interdite sans licence commerciale.
+
 import json
 import re
 from typing import List, Dict, Any, Optional

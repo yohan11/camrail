@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: "Assistant documentaire intelligent de démonstration",
 };
 
+import { LanguageProvider } from "@/lib/LanguageContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -15,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body>
-        <AppShell>{children}</AppShell>
+        <LanguageProvider>
+          <AppShell>{children}</AppShell>
+        </LanguageProvider>
       </body>
     </html>
   );

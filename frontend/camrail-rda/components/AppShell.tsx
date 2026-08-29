@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { clearSession, getSession } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function AppShell({
   children,
@@ -13,6 +14,7 @@ export default function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [session, setSession] = useState<ReturnType<typeof getSession>>(null);
@@ -62,9 +64,9 @@ export default function AppShell({
   const initial = email.charAt(0).toUpperCase();
 
   const navItems = [
-    { name: "Assistant IA", href: "/assistant" },
-    { name: "Documents", href: "/documents" },
-    { name: "Dashboard", href: "/" },
+    { name: t("app.assistant"), href: "/assistant" },
+    { name: t("app.documents"), href: "/documents" },
+    { name: t("app.dashboard"), href: "/" },
   ];
 
   return (
@@ -79,7 +81,7 @@ export default function AppShell({
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col
+        fixed inset-y-0 left-0 z-50 w-72 bg-slate-50 border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col
         md:relative md:translate-x-0
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
@@ -114,17 +116,17 @@ export default function AppShell({
               sessionStorage.removeItem("railmind_conversation_id");
               window.location.href = "/assistant";
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-camrail-red px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-camrail-red-dark"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-camrail-red px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 hover:shadow-md"
           >
-            <span>+</span> Nouvelle conversation
+            <span>+</span> {t("app.new_chat")}
           </a>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 mt-4">Menu principal</p>
+          <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 mt-4">{t("app.menu")}</p>
           {navItems.filter((item) => {
-            if (item.name === 'Dashboard' || item.name === 'Documents') {
+            if (item.name === t("app.dashboard") || item.name === t("app.documents")) {
               return session?.role === 'admin' || session?.role === 'document_admin';
             }
             return true;
@@ -136,10 +138,10 @@ export default function AppShell({
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`
-                  block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                  block px-3 py-2.5 text-sm font-medium transition-colors
                   ${isActive 
-                    ? 'bg-camrail-red-light text-camrail-red font-semibold' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-red-50 text-camrail-red font-semibold border-l-4 border-red-600 rounded-r-lg' 
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg border-l-4 border-transparent'
                   }
                 `}
               >
@@ -151,7 +153,7 @@ export default function AppShell({
           {/* Historique des discussions */}
           {session && (
             <>
-              <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 mt-6">Historique</p>
+              <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 mt-6">{t("app.history")}</p>
               {conversations.length === 0 ? (
                 <p className="px-3 text-xs text-slate-500 italic">Aucune conversation</p>
               ) : (
@@ -198,7 +200,7 @@ export default function AppShell({
               onClick={() => setMobileMenuOpen(false)}
               className="block text-center text-sm font-medium text-camrail-red hover:underline"
             >
-              Se connecter
+              {t("app.logout").replace('Se déconnecter', 'Se connecter').replace('Logout', 'Login')}
             </Link>
           )}
         </div>

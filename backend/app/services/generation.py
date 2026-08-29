@@ -1,3 +1,6 @@
+# © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
+# Utilisation en production strictement interdite sans licence commerciale.
+
 import httpx
 import logging
 import re
@@ -9,9 +12,14 @@ from app.services.connectivity import is_online
 logger = logging.getLogger(__name__)
 
 def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
-    # Find all [X] in the answer
-    matches = re.findall(r'\[(\d+)\]', answer_text)
-    used_indices = {int(m) for m in matches}
+    # Find all [X], (X), or [Source X] in the answer
+    matches = re.findall(r'(?i)\[(\d+)\]|\((\d+)\)|\[source\s*(\d+)\]', answer_text)
+    used_indices = set()
+    for match in matches:
+        # match is a tuple like ('1', '', '') or ('', '2', '')
+        for m in match:
+            if m:
+                used_indices.add(int(m))
     
     # If no citations were used or found, return empty
     if not used_indices:
@@ -32,7 +40,9 @@ def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
     return final_citations
 
 def _generate_with_gemini(system_prompt: str, user_message: str) -> str:
-    """Génère la réponse avec Gemini. Lève une exception explicite en cas d'échec."""
+    """Génère la réponse avec Gemini. Lève une exception explicite en cas d'échec.
+    Un timeout de 15 secondes est appliqué pour détecter rapidement l'absence de connexion.
+    """
     import google.generativeai as genai
     if not settings.GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY non configurée")
@@ -47,7 +57,8 @@ def _generate_with_gemini(system_prompt: str, user_message: str) -> str:
         generation_config=genai.types.GenerationConfig(
             temperature=0.0,
             max_output_tokens=400,
-        )
+        ),
+        request_options={"timeout": 15}
     )
     return response.text.strip()
 
@@ -64,7 +75,7 @@ def _generate_with_ollama(system_prompt: str, user_message: str) -> str:
             {"role": "user", "content": full_prompt}
         ],
         "stream": False,
-        "options": {"temperature": 0.0, "num_predict": 400}
+        "options": {"temperature": 0.0, "num_predict": 200, "num_ctx": 2048}
     }
     
     ollama_url = f"{settings.OLLAMA_BASE_URL}/api/chat"
@@ -75,14 +86,14 @@ def _generate_with_ollama(system_prompt: str, user_message: str) -> str:
         
     return data.get("message", {}).get("content", "").strip()
 
-def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def generate_answer(query: str, search_results: List[Dict[str, Any]], language: str = "fr") -> Dict[str, Any]:
     """
     Generates a natural language answer based on hybrid_search results.
     Implémente un basculement automatique entre Gemini (online) et Ollama (offline).
     """
     if not search_results:
         return {
-            "answer": "Je ne trouve pas cette information dans les documents indexés.",
+            "answer": "Je ne trouve pas cette information dans les documents indexés." if language == 'fr' else "I cannot find this information in the indexed documents.",
             "confidence": "insufficient",
             "citations": [],
             "provider": None
@@ -103,7 +114,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         
     if confidence == "insufficient":
         return {
-            "answer": "Je ne trouve pas cette information dans les documents indexés.",
+            "answer": "Je ne trouve pas cette information dans les documents indexés." if language == 'fr' else "I cannot find this information in the indexed documents.",
             "confidence": "insufficient",
             "citations": [],
             "provider": None
@@ -117,10 +128,10 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         "les lignes, les colonnes ou les extraits entre eux. "
         "Si les extraits ne permettent pas de répondre clairement à la question, dis explicitement que l'information "
         "ne peut pas être confirmée par les documents indexés. "
-        "Réponds dans la langue de la question. Reste concis, deux ou trois phrases maximum. N'utilise "
-        "jamais de connaissance générale extérieure. N'utilise pas de symboles mathématiques spéciaux comme les signes dollar ($) pour tes équations. "
-        "IMPORTANT : Si tu utilises un extrait pour construire ta réponse, tu DOIS obligatoirement inclure son numéro à la fin de la phrase correspondante sous la forme [1], [2], etc. "
-        "N'inclus QUE les numéros des extraits que tu as réellement utilisés."
+        f"The user's preferred language is {language}. You MUST formulate your entire response, including technical terms, strictly in {language}. If the retrieved documents are in French but the user's language is 'en', translate the concepts accurately to English in your response. "
+        "Keep it concise, two or three sentences maximum. Never use general outside knowledge. Do not use special math symbols like dollar signs ($) for equations. "
+        "IMPORTANT: If you use an excerpt to build your answer, you MUST include its number at the end of the corresponding sentence in the format [1], [2], etc. "
+        "Only include the numbers of the excerpts you actually used."
     )
 
     user_message = f"Question : {query}\n\n"
@@ -141,6 +152,18 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
             "citations": [],
             "provider": None
         }
+    
+    # Re-sort filtered results by vector distance to prioritize semantic matches,
+    # because RRF can heavily penalize cross-lingual matches that have zero lexical overlap.
+    def get_sort_key(res):
+        dist = res.get("vector_distance")
+        return dist if dist is not None else 999.0
+
+    filtered_results.sort(key=get_sort_key)
+    
+    # Afin d'accélérer drastiquement la génération avec Ollama (traitement très lourd en local), 
+    # on ne conserve que les 3 documents les plus pertinents sémantiquement au lieu de tout le top_k
+    filtered_results = filtered_results[:3]
     
     # 2. Build citations and LLM context
     for i, res in enumerate(filtered_results, start=1):
@@ -167,6 +190,9 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
     user_message += "Réponds à la question en te basant uniquement sur ces extraits."
     
     # --- AUTOMATIC ROUTER ---
+    # 1. On effectue le test HTTP ultra-rapide (2s max).
+    # 2. Si on est en ligne, on appelle Gemini.
+    # 3. Si on est hors ligne OU que Gemini échoue, on bascule sur Ollama.
     answer_text = None
     provider_used = None
     
@@ -174,22 +200,29 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         try:
             answer_text = _generate_with_gemini(system_prompt, user_message)
             provider_used = "gemini"
+            logger.info("Réponse générée via Gemini.")
         except Exception as e:
-            logger.error(f"Gemini indisponible malgré une connexion détectée, bascule sur Ollama en secours. Détail: {e}")
-            
-    # Si offline OU erreur avec Gemini, on passe par Ollama
+            logger.warning(f"Gemini indisponible malgré une connexion détectée, bascule sur Ollama. Détail: {e}")
+    else:
+        logger.info("Connexion Internet absente (détectée par is_online), bascule immédiate sur Ollama.")
+    
+    # Si Gemini a échoué pour n'importe quelle raison, on passe par Ollama
     if answer_text is None:
         try:
             answer_text = _generate_with_ollama(system_prompt, user_message)
             provider_used = "ollama"
+            logger.info("Réponse générée via Ollama (secours local).")
         except Exception as e:
             logger.error(f"Erreur avec Ollama (secours): {e}")
             return {
-                "answer": "Service temporairement indisponible (erreur locale).",
+                "answer": "Service temporairement indisponible. Veuillez relancer le backend ou vérifier votre réseau.",
                 "confidence": "insufficient",
                 "citations": [],
                 "provider": None
             }
+
+    if not answer_text or not answer_text.strip():
+        answer_text = "Je n'ai pas pu générer de réponse à partir des modèles d'IA (réponse vide)."
 
     final_citations = extract_and_filter_citations(answer_text, all_citations)
     
@@ -199,3 +232,62 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]]) -> Dict[st
         "citations": final_citations,
         "provider": provider_used
     }
+
+def translate_messages(messages: List[Dict[str, str]], target_language: str) -> List[str]:
+    """
+    Translates a list of chat messages to the target language dynamically using Gemini.
+    """
+    if not messages:
+        return []
+        
+    system_prompt = (
+        f"You are an expert translator for CAMRAIL. Translate the following list of messages "
+        f"into {target_language}. Maintain the exact formatting, including markdown and citation markers like [1]. "
+        f"Separate each translated message with '---MESSAGE_BOUNDARY---'."
+    )
+    
+    user_message = ""
+    for idx, msg in enumerate(messages):
+        user_message += f"Message {idx}:\n{msg.get('content', '')}\n\n"
+        
+    try:
+        import google.generativeai as genai
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY not configured")
+            
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-flash-lite-latest')
+        
+        prompt = f"{system_prompt}\n\n{user_message}"
+        
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.0,
+            ),
+            request_options={"timeout": 30}
+        )
+        
+        full_text = response.text.strip()
+        # Parse the boundaries
+        translated = [msg.strip() for msg in full_text.split("---MESSAGE_BOUNDARY---")]
+        
+        # Clean up any leftover "Message X:" prefixes the LLM might have generated
+        cleaned_translated = []
+        for t in translated:
+            if t:
+                # Remove ^Message X: pattern
+                cleaned = re.sub(r'^Message \d+:\s*', '', t).strip()
+                cleaned_translated.append(cleaned)
+                
+        # If the LLM didn't use boundaries properly, fallback to returning original lengths
+        if len(cleaned_translated) != len(messages):
+            logger.warning("Translation boundaries mismatched. Returning original messages.")
+            return [m.get("content", "") for m in messages]
+            
+        return cleaned_translated
+        
+    except Exception as e:
+        logger.error(f"Translation failed: {e}")
+        # Fallback: return original text
+        return [m.get("content", "") for m in messages]

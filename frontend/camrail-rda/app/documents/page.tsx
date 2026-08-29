@@ -162,7 +162,7 @@ export default function DocumentsPage() {
             className="hidden" 
             accept=".pdf,.docx" 
           />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-end gap-4">
             {isAdmin && (
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
                 <input
@@ -178,7 +178,7 @@ export default function DocumentsPage() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-camrail-red px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-camrail-red-dark disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-camrail-red px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 hover:shadow-md disabled:opacity-50"
             >
               <span className="text-lg leading-none">+</span>
               {uploading ? "Envoi..." : "Nouveau document"}
@@ -315,13 +315,13 @@ export default function DocumentsPage() {
                         {isAdmin && (
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             {(document.status === "indexed" || document.status === "archived") && (
-                              <button onClick={() => handleStatusChange(document.id, document.status)} className="text-emerald-600 hover:text-emerald-900 bg-emerald-50 px-3 py-1 rounded-md transition-colors ml-2">
-                                Activer
+                              <button onClick={() => handleStatusChange(document.id, document.status)} title="Activer" className="text-gray-400 hover:text-emerald-600 transition-colors ml-2 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.05l5.67-5.67"/></svg>
                               </button>
                             )}
                             {document.status === "active" && (
-                              <button onClick={() => handleStatusChange(document.id, document.status)} className="text-amber-600 hover:text-amber-900 bg-amber-50 px-3 py-1 rounded-md transition-colors ml-2">
-                                Archiver
+                              <button onClick={() => handleStatusChange(document.id, document.status)} title="Archiver" className="text-gray-400 hover:text-red-600 transition-colors ml-2 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
                               </button>
                             )}
                           </td>
@@ -354,20 +354,22 @@ export default function DocumentsPage() {
                           <span>v{document.version}</span>
                         </div>
                       </div>
-                      <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide border ${status.className}`}>
-                        {status.label}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide border ${status.className}`}>
+                          {status.label}
+                        </span>
+                        {isAdmin && (document.status === "indexed" || document.status === "archived") && (
+                          <button onClick={() => handleStatusChange(document.id, document.status)} title="Activer" className="text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.05l5.67-5.67"/></svg>
+                          </button>
+                        )}
+                        {isAdmin && document.status === "active" && (
+                          <button onClick={() => handleStatusChange(document.id, document.status)} title="Archiver" className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {isAdmin && (document.status === "indexed" || document.status === "archived") && (
-                      <button onClick={() => handleStatusChange(document.id, document.status)} className="mt-3 w-full text-center text-emerald-600 font-medium hover:text-emerald-800 bg-emerald-50 py-2 rounded-lg text-sm transition-colors">
-                        Activer le document
-                      </button>
-                    )}
-                    {isAdmin && document.status === "active" && (
-                      <button onClick={() => handleStatusChange(document.id, document.status)} className="mt-3 w-full text-center text-amber-600 font-medium hover:text-amber-800 bg-amber-50 py-2 rounded-lg text-sm transition-colors">
-                        Archiver le document
-                      </button>
-                    )}
                   </div>
                 );
               })}

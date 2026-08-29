@@ -9,9 +9,9 @@ from sqlalchemy import func
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.schemas import User, RdaQuery, Rule, DocumentChunk, Document, Conversation, ConversationMessage
-from app.schemas.assistant import AssistantQueryRequest, AssistantQueryResponse, CitationItem
+from app.schemas.assistant import AssistantQueryRequest, AssistantQueryResponse, CitationItem, TranslationRequest, TranslationResponse
 from app.services.retrieval import hybrid_search
-from app.services.generation import generate_answer
+from app.services.generation import generate_answer, translate_messages
 from app.services.audit import log_audit_event
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -121,8 +121,11 @@ def assistant_query(
     )
 
     # 2. Generate answer
-    gen_result = generate_answer(query=payload.query, search_results=search_results)
-
+    gen_result = generate_answer(
+        query=payload.query, 
+        search_results=search_results,
+        language=payload.language
+    )
     duration_ms = int((time.perf_counter() - start_time) * 1000)
 
     # Build citations list
@@ -209,4 +212,15 @@ def assistant_query(
         duration_ms=duration_ms,
         provider=gen_result.get("provider")
     )
+
+@router.post("/translate", response_model=TranslationResponse)
+def translate_conversation(payload: TranslationRequest, current_user = Depends(get_current_user)):
+    """
+    Translates a list of messages to the target language.
+    """
+    # Convert payload messages to list of dicts
+    messages = [{"role": msg.role, "content": msg.content} for msg in payload.messages]
     
+    translated = translate_messages(messages, payload.target_language)
+    
+    return TranslationResponse(translated_messages=translated)

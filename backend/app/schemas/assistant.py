@@ -6,6 +6,7 @@ class AssistantQueryRequest(BaseModel):
     conversation_id: Optional[int] = Field(None, description="Optional conversation identifier")
     department: Optional[str] = Field(None, description="Optional filter by department")
     category: Optional[str] = Field(None, description="Optional filter by category")
+    language: str = Field("fr", description="The language of the query and expected response ('fr' or 'en')")
 
 class CitationItem(BaseModel):
     document_id: int
@@ -30,3 +31,14 @@ class AssistantQueryResponse(BaseModel):
     provider: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class TranslateMessageItem(BaseModel):
+    role: str
+    content: str
+
+class TranslationRequest(BaseModel):
+    messages: List[TranslateMessageItem]
+    target_language: str
+
+class TranslationResponse(BaseModel):
+    translated_messages: List[str]

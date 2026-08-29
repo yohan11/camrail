@@ -1,5 +1,19 @@
+# © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
+# Utilisation en production strictement interdite sans licence commerciale.
+
+import os
+import sys
+import httpx
+import time
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.services.connectivity import is_online
+# CRITICAL: We must set HF_HUB_OFFLINE before ANY file imports sentence_transformers
+if not is_online(timeout_seconds=2.0):
+    os.environ["HF_HUB_OFFLINE"] = "1"
+
 from app.config import settings
 from app.database import engine, SessionLocal
 from app.models import schemas
@@ -12,10 +26,38 @@ from app.seed import seed_database
 if settings.DATABASE_URL.startswith("sqlite"):
     schemas.Base.metadata.create_all(bind=engine)
 
+# 1. METS TON URL ICI (Assure-toi de retirer le long hash de commit juste après /raw/)
+# Exemple: https://gist.githubusercontent.com/yohan11/123456789/raw/railmind_licence.json
+BASE_LICENCE_URL = "https://gist.githubusercontent.com/yohan11/a91b688220a6c9d582a789331ed25303/raw/railmind_licence.json"
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Vérification de la licence RailMind Lite...")
+    try:
+        # 2. CACHE BUSTING : On ajoute l'heure exacte à l'URL pour contourner le cache de GitHub
+        url_sans_cache = f"{BASE_LICENCE_URL}?t={time.time()}"
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url_sans_cache, timeout=5.0)
+            data = response.json()
+            
+            # Si le statut n'est pas "active", on bloque tout
+            if data.get("status") != "active":
+                print("ERREUR CRITIQUE : Licence révoquée ou invalide. Contactez les développeurs.")
+                sys.exit(1)
+            else:
+                print("Licence VALIDE. Démarrage de l'application...")
+    except Exception as e:
+        print(f"ERREUR CRITIQUE : Impossible de valider la licence système. ({e})")
+        sys.exit(1)
+    
+    yield
+
 app = FastAPI(
     title="RailMind Lite API",
     description="Backend API for CAMRAIL RailMind Lite - RAG Engine",
-    version="1.0"
+    version="1.0",
+    lifespan=lifespan
 )
 
 # CORS configuration to connect the frontend easily

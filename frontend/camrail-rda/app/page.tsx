@@ -121,11 +121,18 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div 
                   onClick={() => fetchQueries()}
-                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-camrail-red hover:bg-red-50 cursor-pointer transition-colors"
+                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:border-camrail-red hover:bg-red-50 cursor-pointer transition-colors relative overflow-hidden group"
                 >
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Requêtes (Aujourd'hui)</p>
-                  <p className="text-4xl font-bold text-slate-900">{summary.questions_today}</p>
-                  <p className="text-xs text-slate-400 mt-2">Sur un total historique de {summary.questions_total}</p>
+                  <div className="absolute bottom-0 left-0 right-0 h-16 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <svg viewBox="0 0 100 20" preserveAspectRatio="none" className="w-full h-full text-camrail-red" fill="currentColor">
+                      <polygon points="0,20 0,15 20,10 40,18 60,5 80,12 100,2 100,20" />
+                    </svg>
+                  </div>
+                  <div className="relative z-10">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Requêtes (Aujourd'hui)</p>
+                    <p className="text-4xl font-bold text-slate-900">{summary.questions_today}</p>
+                    <p className="text-xs text-slate-400 mt-2">Sur un total historique de {summary.questions_total}</p>
+                  </div>
                 </div>
                 
                 <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
@@ -177,7 +184,7 @@ export default function DashboardPage() {
                 </h2>
                 <div 
                   onClick={() => fetchAudit()}
-                  className="rounded-xl border border-slate-200 bg-slate-900 text-white p-5 shadow-sm h-[124px] flex flex-col justify-center relative overflow-hidden hover:bg-slate-800 cursor-pointer transition-colors"
+                  className="rounded-xl border-0 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 shadow-sm h-[124px] flex flex-col justify-center relative overflow-hidden hover:from-slate-800 hover:to-slate-700 cursor-pointer transition-all"
                 >
                   <div className="absolute top-0 right-0 p-4 opacity-10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>

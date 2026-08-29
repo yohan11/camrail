@@ -11,7 +11,6 @@ from app.models.schemas import Document, DocumentPage, DocumentChunk
 # Initialize sentence-transformers model from local cache
 _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
-
 def embed_text(text: str) -> List[float]:
     """
     Computes dense 384-dimensional vector embedding for the given text.
