@@ -5,7 +5,9 @@
 ### 1. Prérequis
 - **Python 3.12+**
 - **PostgreSQL** avec l'extension `pgvector` activée (ou utilisez Docker).
-- **Ollama** installé localement avec le modèle par défaut téléchargé (`llama3.2:3b` ou celui défini dans `.env`).
+- **LLM Provider** : 
+  - **Ollama** installé localement avec le modèle par défaut téléchargé (`llama3.2:3b` ou celui défini dans `.env`).
+  - **Ou Gemini** (Plan B) : Si vous n'avez pas de GPU, vous pouvez forcer l'utilisation de Gemini en modifiant le fichier `.env` (`LLM_PROVIDER=gemini` et `GEMINI_API_KEY=votre_cle`).
 - *(Optionnel)* **Tesseract OCR** pour démontrer le fallback OCR.
 
 ### 2. Commandes de lancement
@@ -32,6 +34,8 @@ L'API est maintenant disponible sur `http://localhost:8000` et la documentation 
 
 ### 3. Comptes de Démo
 
+> ⚠️ **AVERTISSEMENT** : Les comptes ci-dessous sont des comptes de démonstration à durée de vie limitée, ne contenant aucune donnée réelle. Leurs identifiants sont rendus publics dans le dépôt exclusivement pour permettre l'évaluation du projet par le jury du concours.
+
 Ces comptes sont automatiquement créés par le script de reset :
 
 - **Administrateur (Vue globale)** :
@@ -43,6 +47,11 @@ Ces comptes sont automatiquement créés par le script de reset :
 - **Utilisateur Standard (Restreint au département "Formation")** :
   - Email : `readonly@camrail.net`
   - Mot de passe : `readonlypassword`
+
+### 4. Calibration de la Confiance RAG
+
+Le seuil `RAG_MIN_CONFIDENCE` (dans `.env` ou `config.py`) est calibré à **0.65** par défaut (distance cosinus).
+**Justification** : Après évaluation sur le golden set enrichi, un seuil strict à 0.75 rejetait trop de vrais positifs pertinents (surtout lors de correspondances multilingues ou reformulations). La valeur 0.65 offre le meilleur compromis (F1-score optimal) entre la précision de la récupération et le taux d'abstention sur les questions hors-sujet.
 
 ---
 

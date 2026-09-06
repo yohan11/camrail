@@ -15,6 +15,13 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from pgvector.sqlalchemy import Vector
 from app.database import Base
+import enum
+
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    DOCUMENT_ADMIN = "document_admin"
+    READ_ONLY = "read_only"
+
 # Many-to-many relationship between users and security groups
 user_security_groups = Table(
     "user_security_groups",

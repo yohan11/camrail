@@ -27,14 +27,12 @@ def search_documents(
     request_id = str(uuid.uuid4())
     start_time = time.perf_counter()
 
+    from app.security import get_effective_search_scope
+    scope_department, user_security_groups = get_effective_search_scope(current_user)
+    
     search_department = payload.department
-    if current_user.role == "read_only" and current_user.department:
-        search_department = current_user.department
-
-    if current_user.role in ["admin", "document_admin"]:
-        user_security_groups = None
-    else:
-        user_security_groups = [group.name for group in current_user.security_groups]
+    if scope_department:
+        search_department = scope_department
 
     results = hybrid_search(
         db=db,

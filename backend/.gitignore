@@ -20,6 +20,7 @@ env/
 # Storage
 storage/
 demo_documents/
+demo-data/
 
 # Tests & temporary files
 test_*.pdf

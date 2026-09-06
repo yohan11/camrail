@@ -11,7 +11,7 @@ from app.seed import seed_database
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-DEMO_DIR = "demo_documents"
+DEMO_DIR = "demo-data"
 
 def generate_mock_pdfs():
     """Generates mock PDFs if the demo_documents directory is empty."""
@@ -37,6 +37,27 @@ def generate_mock_pdfs():
     pdf2.set_font("Arial", size=12)
     pdf2.multi_cell(0, 10, text="Chapitre 2: Introduction a Java\nJava est un langage oriente objet tres utilise en entreprise. Chapitre 3: L'heritage permet de creer des hierarchies de classes. Chapitre 4: Le polymorphisme.")
     pdf2.output(os.path.join(DEMO_DIR, "Formation_Java_Chap_2_4.pdf"))
+
+    # 3. Golden Set DOCX files
+    try:
+        from docx import Document
+        docs = {
+            '01_histoire_chemin_de_fer.docx': 'Les premières voies ferrées sont apparues au XIXe siècle, révolutionnant le transport de marchandises et de passagers.',
+            '02_infrastructure_voie_ferree.docx': 'Une voie ferrée classique est composée de rails, de traverses et de ballast.',
+            '03_signalisation_ferroviaire.docx': 'Le rôle premier de la signalisation ferroviaire est de garantir la sécurité des circulations.',
+            '04_trains_grande_vitesse.docx': 'Un train est qualifié de grande vitesse lorsqu\'il dépasse 250 km/h sur une ligne nouvelle.',
+            '05_securite_ferroviaire_reglementation.docx': 'En France, c\'est l\'EPSF qui est chargé de délivrer les autorisations de circulation.',
+            'RailMind_Test_03_Maintenance_FR.docx': 'La maintenance préventive consiste à intervenir sur le matériel avant qu\'une panne ne survienne.',
+            'RailMind_Test_02_Securite_FR.docx': 'La sécurité ferroviaire générale dépend d\'un ensemble de facteurs: infrastructures, contrôle.',
+            'RailMind_Test_01_Operations_FR.docx': 'La gestion de la circulation des trains consiste à planifier et réguler le trafic.'
+        }
+        for filename, content in docs.items():
+            doc = Document()
+            doc.add_heading(filename.replace('.docx', ''), 0)
+            doc.add_paragraph(content)
+            doc.save(os.path.join(DEMO_DIR, filename))
+    except ImportError:
+        print("python-docx non installé, impossible de générer les fichiers .docx pour le golden set.")
     
 def calculate_checksum(filepath):
     sha256_hash = hashlib.sha256()
@@ -111,6 +132,22 @@ def seed_demo():
             elif "Formation" in filename or "Java" in filename:
                 category = "manuel"
                 department = "Formation"
+            elif "histoire" in filename:
+                category = "Histoire"
+            elif "infrastructure" in filename:
+                category = "Infrastructure"
+            elif "signalisation" in filename:
+                category = "Signalisation"
+            elif "grande_vitesse" in filename:
+                category = "Matériel Roulant"
+            elif "reglementation" in filename:
+                category = "Réglementation"
+            elif "Maintenance" in filename:
+                category = "Maintenance"
+            elif "Securite" in filename:
+                category = "Sécurité"
+            elif "Operations" in filename:
+                category = "Exploitation"
                 
             print(f"  -> Uploading {filename} (Category: {category}, Dept: {department})...")
             

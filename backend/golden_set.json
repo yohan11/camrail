@@ -1,6 +1,12 @@
-+[
+[
   {
     "question": "Où sont apparues les premières voies ferrées ?",
+    "expected_document_title": "01_histoire_chemin_de_fer.docx",
+    "expected_page": 1,
+    "category": "Histoire"
+  },
+  {
+    "question": "Quel siècle a vu naître le chemin de fer comme moyen de transport ?",
     "expected_document_title": "01_histoire_chemin_de_fer.docx",
     "expected_page": 1,
     "category": "Histoire"
@@ -12,13 +18,31 @@
     "category": "Infrastructure"
   },
   {
+    "question": "Quels éléments assurent la stabilité des trains sur les rails ?",
+    "expected_document_title": "02_infrastructure_voie_ferree.docx",
+    "expected_page": 2,
+    "category": "Infrastructure"
+  },
+  {
     "question": "Quel est le rôle premier de la signalisation ferroviaire ?",
     "expected_document_title": "03_signalisation_ferroviaire.docx",
     "expected_page": 1,
     "category": "Signalisation"
   },
   {
+    "question": "Comment éviter les collisions entre trains ?",
+    "expected_document_title": "03_signalisation_ferroviaire.docx",
+    "expected_page": 2,
+    "category": "Signalisation"
+  },
+  {
     "question": "À partir de quelle vitesse un train est-il qualifié de grande vitesse sur une ligne nouvelle ?",
+    "expected_document_title": "04_trains_grande_vitesse.docx",
+    "expected_page": 1,
+    "category": "Matériel Roulant"
+  },
+  {
+    "question": "Quel est le seuil de vitesse pour les TGV ?",
     "expected_document_title": "04_trains_grande_vitesse.docx",
     "expected_page": 1,
     "category": "Matériel Roulant"
@@ -30,13 +54,31 @@
     "category": "Réglementation"
   },
   {
+    "question": "Qui donne le feu vert pour faire circuler un train en France ?",
+    "expected_document_title": "05_securite_ferroviaire_reglementation.docx",
+    "expected_page": 1,
+    "category": "Réglementation"
+  },
+  {
     "question": "En quoi consiste la maintenance préventive ?",
     "expected_document_title": "RailMind_Test_03_Maintenance_FR.docx",
     "expected_page": 1,
     "category": "Maintenance"
   },
   {
+    "question": "Que faut-il faire pour éviter qu'une panne ne survienne sur le matériel ?",
+    "expected_document_title": "RailMind_Test_03_Maintenance_FR.docx",
+    "expected_page": 2,
+    "category": "Maintenance"
+  },
+  {
     "question": "De quoi dépend la sécurité ferroviaire générale ?",
+    "expected_document_title": "RailMind_Test_02_Securite_FR.docx",
+    "expected_page": 1,
+    "category": "Sécurité"
+  },
+  {
+    "question": "Quels sont les facteurs de fiabilité dans le transport par rail ?",
     "expected_document_title": "RailMind_Test_02_Securite_FR.docx",
     "expected_page": 1,
     "category": "Sécurité"
@@ -48,6 +90,30 @@
     "category": "Exploitation"
   },
   {
+    "question": "Comment réguler le trafic pour optimiser le réseau ?",
+    "expected_document_title": "RailMind_Test_01_Operations_FR.docx",
+    "expected_page": 1,
+    "category": "Exploitation"
+  },
+  {
+    "question": "Comparaison: Quelle est la différence entre la maintenance préventive et curative ?",
+    "expected_document_title": "RailMind_Test_03_Maintenance_FR.docx",
+    "expected_page": 1,
+    "category": "Comparaison"
+  },
+  {
+    "question": "Selon le tableau des incidents, quel mois a connu le plus de retards ?",
+    "expected_document_title": "RailMind_Test_01_Operations_FR.docx",
+    "expected_page": 3,
+    "category": "Tableau"
+  },
+  {
+    "question": "Comment les normes EPSF impactent-elles la maintenance préventive ?",
+    "expected_document_title": "05_securite_ferroviaire_reglementation.docx",
+    "expected_page": 1,
+    "category": "Multi-documents"
+  },
+  {
     "question": "Quelle est la capitale de l'Australie ?",
     "expected_document_title": null,
     "expected_page": null,
@@ -55,6 +121,30 @@
   },
   {
     "question": "Comment faire un gâteau au chocolat ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": "hors-sujet"
+  },
+  {
+    "question": "Quel est le meilleur film de science-fiction ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": "hors-sujet"
+  },
+  {
+    "question": "Combien de pattes a une araignée ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": "hors-sujet"
+  },
+  {
+    "question": "Où se trouve la tour Eiffel ?",
+    "expected_document_title": null,
+    "expected_page": null,
+    "category": "hors-sujet"
+  },
+  {
+    "question": "Peux-tu me donner la recette de la tarte aux pommes ?",
     "expected_document_title": null,
     "expected_page": null,
     "category": "hors-sujet"

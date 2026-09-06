@@ -98,6 +98,7 @@ def index_document(document_id: int, db: Session) -> int:
 
     chunk_index = 0
     created_count = 0
+    seen_hashes = set()
     
     fallback_security_group = doc.security_groups[0].name if doc.security_groups else "default"
 
@@ -120,8 +121,10 @@ def index_document(document_id: int, db: Session) -> int:
             # Calcul du hash SHA-256 du contenu
             content_hash = hashlib.sha256(piece.encode("utf-8")).hexdigest()
             
-            # NOTE: Pour ce PoC, on crée le chunk même s'il existe déjà un hash identique 
-            # (pas de déduplication stricte), l'objectif est d'avoir le hash présent et interrogeable.
+            # Déduplication: ignorer ce chunk s'il est déjà présent dans ce document
+            if content_hash in seen_hashes:
+                continue
+            seen_hashes.add(content_hash)
             
             emb = embed_text(piece)
             chunk_obj = DocumentChunk(
