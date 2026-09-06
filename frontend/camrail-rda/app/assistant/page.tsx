@@ -395,7 +395,7 @@ function AssistantContent() {
                               {message.citations.map((cit, idx) => (
                                 <Link 
                                   key={idx}
-                                  href={`/documents/${cit.document_id}#page=${cit.page_start}&search=${encodeURIComponent((cit.excerpt.length > 50 ? cit.excerpt.substring(Math.floor(cit.excerpt.length/2) - 25, Math.floor(cit.excerpt.length/2) + 25) : cit.excerpt).replace(/\n/g, ' ').trim())}&words=${encodeURIComponent(message.content.replace(/\n/g, ' ').trim())}`}
+                                  href={`/documents/${cit.document_id}#page=${cit.page_start}&search=${encodeURIComponent((cit.excerpt.length > 50 ? cit.excerpt.substring(Math.floor(cit.excerpt.length/2) - 25, Math.floor(cit.excerpt.length/2) + 25) : cit.excerpt).replace(/\n/g, ' ').trim())}&words=${encodeURIComponent(message.content.replace(/\n/g, ' ').trim())}&excerpt=${encodeURIComponent(cit.excerpt.trim())}`}
                                   className="group flex flex-col p-4 rounded-xl border border-slate-200 bg-white hover:border-camrail-red hover:shadow-sm transition-all w-64"
                                 >
                                   <div className="mb-1">

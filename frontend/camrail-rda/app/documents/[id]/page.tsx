@@ -197,6 +197,9 @@ export default function DocumentViewerPage() {
                         {document.pages.sort((a, b) => a.page_number - b.page_number).map((page) => {
                           const wordsMatch = urlHash.match(/words=([^&]*)/);
                           const wordsParam = wordsMatch ? decodeURIComponent(wordsMatch[1]) : "";
+                          const excerptMatch = urlHash.match(/excerpt=([^&]*)/);
+                          const excerptParam = excerptMatch ? decodeURIComponent(excerptMatch[1]) : "";
+                          
                           let text = page.extracted_text || "Aucun texte extrait pour cette page.";
                           
                           // Liste des petits mots de liaison à ignorer pour éviter de surligner tout le document
@@ -214,8 +217,6 @@ export default function DocumentViewerPage() {
                           const renderHighlightedText = (content: string) => {
                             if (wordsToHighlight.length === 0) return content;
                             
-                            // Créer une regex qui match n'importe quel mot de la liste
-                            // On trie par longueur décroissante pour éviter qu'un mot court (ex: "rail") empêche le match d'un mot long (ex: "camrail")
                             const sortedWords = [...new Set(wordsToHighlight)].sort((a, b) => b.length - a.length);
                             const regex = new RegExp(`\\b(${sortedWords.join('|')})\\b`, 'gi');
                             const parts = content.split(regex);
@@ -227,12 +228,48 @@ export default function DocumentViewerPage() {
                               return part;
                             });
                           };
+
+                          let beforeText = text;
+                          let excerptText = "";
+                          let afterText = "";
+
+                          // Localiser l'extrait dans la page pour ne surligner QUE dans cet extrait
+                          if (excerptParam && text.includes(excerptParam)) {
+                            const startIndex = text.indexOf(excerptParam);
+                            beforeText = text.substring(0, startIndex);
+                            excerptText = excerptParam;
+                            afterText = text.substring(startIndex + excerptParam.length);
+                          } else if (excerptParam) {
+                            // Recherche approximative si les espaces ont changé
+                            const prefix = excerptParam.substring(0, 30).trim();
+                            const prefixIndex = prefix ? text.indexOf(prefix) : -1;
+                            if (prefixIndex !== -1) {
+                              beforeText = text.substring(0, prefixIndex);
+                              const suffix = excerptParam.substring(excerptParam.length - 30).trim();
+                              const suffixIndex = suffix ? text.indexOf(suffix, prefixIndex) : -1;
+                              if (suffixIndex !== -1) {
+                                excerptText = text.substring(prefixIndex, suffixIndex + suffix.length);
+                                afterText = text.substring(suffixIndex + suffix.length);
+                              } else {
+                                excerptText = text.substring(prefixIndex, prefixIndex + excerptParam.length + 50);
+                                afterText = text.substring(prefixIndex + excerptText.length);
+                              }
+                            } else {
+                              excerptText = text;
+                              beforeText = "";
+                            }
+                          } else {
+                            excerptText = text;
+                            beforeText = "";
+                          }
                           
                           return (
                             <div key={page.id} id={`page=${page.page_number}`} className="scroll-mt-10">
                               <h3 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Page {page.page_number}</h3>
                               <div className="prose prose-slate prose-sm max-w-none whitespace-pre-wrap font-mono text-xs text-slate-600 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                {renderHighlightedText(text)}
+                                {beforeText}
+                                {excerptText ? renderHighlightedText(excerptText) : null}
+                                {afterText}
                               </div>
                             </div>
                           );

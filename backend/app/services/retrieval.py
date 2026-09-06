@@ -1,5 +1,6 @@
 # © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
 # Utilisation en production strictement interdite sans licence commerciale.
+# TODO (DÉCISION HUMAINE) : Vérifier si cette mention de licence commerciale stricte n'entre pas en conflit avec le règlement de soumission du concours.
 
 import json
 import re
@@ -53,9 +54,10 @@ def hybrid_search(
             # Safely fail if user has no authorized security groups
             return []
         
-        # Clean architecture: filter chunks by the document's assigned security groups
+        # Filtrage strict au niveau du document ET au niveau du chunk (Option B rigoureuse)
         from app.models.schemas import SecurityGroup
         base_filter.append(Document.security_groups.any(SecurityGroup.name.in_(security_groups)))
+        base_filter.append(DocumentChunk.security_group.in_(security_groups))
 
     # Apply document_title_hint filter if provided
     if document_title_hint:

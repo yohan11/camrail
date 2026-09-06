@@ -3,6 +3,23 @@ from typing import Any, Union, Dict, Optional
 import jwt
 import bcrypt
 from app.config import settings
+from app.models.schemas import User, UserRole
+from typing import Tuple, Optional, List
+
+def get_effective_search_scope(user: User) -> Tuple[Optional[str], Optional[List[str]]]:
+    """
+    Returns (department, security_groups) based on the user's role.
+    - Admins see all departments and all security groups.
+    - Read-only users are restricted to their department (if set) and their assigned security groups.
+    """
+    department = user.department if user.role == UserRole.READ_ONLY else None
+    
+    if user.role in [UserRole.ADMIN, UserRole.DOCUMENT_ADMIN]:
+        security_groups = None
+    else:
+        security_groups = [group.name for group in user.security_groups]
+        
+    return department, security_groups
 
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode('utf-8')

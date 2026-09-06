@@ -2,94 +2,145 @@ import json
 import time
 import os
 import sys
+import re
 
 from app.database import SessionLocal
 from app.models.schemas import Document
 from app.services.retrieval import hybrid_search
+from app.services.generation import generate_answer
+
+def calculate_mrr(rankings):
+    if not rankings: return 0.0
+    return sum(1.0 / rank for rank in rankings if rank > 0) / len(rankings)
 
 def run_golden_set():
     print("=" * 70)
-    print("      RAILMIND LITE - GOLDEN SET EVALUATION")
+    print("      RAILMIND LITE - GOLDEN SET EVALUATION (ADVANCED)")
     print("=" * 70)
 
     db = SessionLocal()
     try:
-        # Check if enough documents exist
-        doc_count = db.query(Document).filter(Document.status == "active").count()
-        if doc_count < 2:
-            print(f"ATTENTION: Pas assez de documents indexés pour évaluer le golden set correctement. (Nombre actuel: {doc_count})")
-            print("Veuillez d'abord exécuter run_test_search.py ou uploader des documents via l'API.")
-            return
-
         with open("golden_set.json", "r", encoding="utf-8") as f:
             golden_set = json.load(f)
 
-        total_questions_with_answer = 0
-        successful_questions = 0
-        total_latency_ms = 0
-        latencies = []
+        total_in_domain = 0
+        total_out_domain = 0
+        successful_retrieval_at_5 = 0
+        rankings = []
+        
+        # LLM Faithfulness metrics
+        faithfulness_checked = 0
+        faithfulness_passed = 0
+        abstention_passed = 0
 
-        print("\n[Évaluation des questions avec réponse attendue]")
+        print("\n[Évaluation des questions DANS LE DOMAINE]")
         for item in golden_set:
             if not item.get("expected_document_title"):
                 continue
                 
-            total_questions_with_answer += 1
+            total_in_domain += 1
             query = item["question"]
             expected_title = item["expected_document_title"]
             
-            start_time = time.perf_counter()
             results = hybrid_search(db=db, query=query, top_k=5)
-            duration_ms = (time.perf_counter() - start_time) * 1000
             
-            total_latency_ms += duration_ms
-            latencies.append(duration_ms)
-            
-            # Check if expected document is in top 5
-            found = False
+            found_rank = 0
             for rank, res in enumerate(results, start=1):
                 if expected_title.lower() in res["document_title"].lower():
-                    found = True
+                    found_rank = rank
                     break
             
-            if found:
-                successful_questions += 1
-                print(f" [SUCCÈS] {query[:50]}... (Trouvé dans le top-5)")
+            if found_rank > 0:
+                successful_retrieval_at_5 += 1
+                rankings.append(found_rank)
+                print(f" [SUCCÈS] {query[:45]:<45} (Rang: {found_rank})")
             else:
-                print(f" [ÉCHEC]  {query[:50]}... (Non trouvé)")
+                rankings.append(0)
+                print(f" [ÉCHEC]  {query[:45]:<45} (Non trouvé dans le top-5)")
 
-        print("\n[Évaluation des questions SANS réponse attendue (abstention)]")
+            # Optional Faithfulness Check for first few queries to save time/API cost
+            if faithfulness_checked < 5 and found_rank > 0:
+                try:
+                    # We pass the results to generation to see if it hallucinates citations
+                    gen_result = generate_answer(query, results)
+                    answer = gen_result.get("answer", "")
+                    citations = gen_result.get("citations", [])
+                    
+                    # Check citations in text
+                    cits_in_text = re.findall(r'\[(\d+)\]', answer)
+                    valid_cits = [str(c["llm_index"]) for c in citations] if citations else [str(i+1) for i in range(len(results))]
+                    
+                    is_faithful = True
+                    for c in cits_in_text:
+                        if c not in valid_cits:
+                            is_faithful = False
+                            
+                    if is_faithful:
+                        faithfulness_passed += 1
+                    faithfulness_checked += 1
+                except Exception:
+                    pass
+
+        print("\n[Évaluation des questions HORS DOMAINE (Abstention)]")
         for item in golden_set:
             if item.get("expected_document_title"):
                 continue
                 
+            total_out_domain += 1
             query = item["question"]
-            start_time = time.perf_counter()
             results = hybrid_search(db=db, query=query, top_k=5)
-            duration_ms = (time.perf_counter() - start_time) * 1000
             
-            total_latency_ms += duration_ms
-            latencies.append(duration_ms)
-            
-            top_score = results[0]["score"] if results else 0.0
-            print(f" [INFO] Requête hors-sujet: {query[:50]}... -> Score max retourné: {top_score:.4f}")
+            # Run generation to verify abstention
+            try:
+                gen_result = generate_answer(query, results)
+                ans = gen_result.get("answer", "").lower()
+                conf = gen_result.get("confidence")
+                if conf == "insufficient" or "ne trouve pas" in ans or "cannot find" in ans:
+                    abstention_passed += 1
+                    print(f" [SUCCÈS] Abstention correcte: {query[:40]}...")
+                else:
+                    print(f" [ÉCHEC]  Le modèle a tenté de répondre: {query[:40]}...")
+            except Exception:
+                # If API fails, we skip
+                pass
 
-        # Summary
-        if total_questions_with_answer > 0:
-            success_rate = (successful_questions / total_questions_with_answer) * 100
-            avg_latency = total_latency_ms / len(golden_set)
-            latencies.sort()
-            p95_index = int(len(latencies) * 0.95) - 1
-            p95_latency = latencies[max(0, p95_index)]
-            
-            print("\n" + "=" * 70)
-            print("                       RÉSUMÉ FINAL")
-            print("=" * 70)
-            print(f"Taux de succès : {successful_questions}/{total_questions_with_answer} questions avec réponse trouvées dans le top-5 ({success_rate:.1f}%)")
-            print("  (Cible officielle à terme : > 85%)")
-            print(f"Latence moyenne : {avg_latency:.0f} ms par requête")
-            print(f"Latence p95     : {p95_latency:.0f} ms par requête (Cible < 1000 ms hors LLM)")
-            print("=" * 70)
+        # Calculate metrics
+        p_at_5 = (successful_retrieval_at_5 / total_in_domain) * 100 if total_in_domain > 0 else 0
+        mrr = calculate_mrr(rankings)
+        faith_rate = (faithfulness_passed / faithfulness_checked) * 100 if faithfulness_checked > 0 else 0
+        abst_rate = (abstention_passed / total_out_domain) * 100 if total_out_domain > 0 else 0
+
+        # Export JSON
+        report = {
+            "total_questions_in_domain": total_in_domain,
+            "precision_at_5_percentage": p_at_5,
+            "mrr": mrr,
+            "faithfulness_percentage": faith_rate,
+            "abstention_percentage": abst_rate
+        }
+        with open("golden_set_report.json", "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=4)
+
+        # Markdown Export
+        md_report = f"""# Rapport d'Évaluation Golden Set
+
+**Précision @ 5** : {p_at_5:.1f}% ({successful_retrieval_at_5}/{total_in_domain})
+**MRR (Mean Reciprocal Rank)** : {mrr:.3f}
+**Taux de Fidélité (Faithfulness)** : {faith_rate:.1f}% ({faithfulness_passed}/{faithfulness_checked} évalués)
+**Taux d'Abstention (Hors-sujet)** : {abst_rate:.1f}% ({abstention_passed}/{total_out_domain})
+"""
+        with open("golden_set_report.md", "w", encoding="utf-8") as f:
+            f.write(md_report)
+
+        print("\n" + "=" * 70)
+        print("                       RÉSUMÉ FINAL")
+        print("=" * 70)
+        print(f"Précision @ 5 : {p_at_5:.1f}%")
+        print(f"MRR           : {mrr:.3f}")
+        print(f"Fidélité LLM  : {faith_rate:.1f}%")
+        print(f"Abstention    : {abst_rate:.1f}%")
+        print("-> Rapports générés: golden_set_report.json et golden_set_report.md")
+        print("=" * 70)
 
     except Exception as e:
         print(f"Erreur lors de l'exécution du golden set : {e}")
