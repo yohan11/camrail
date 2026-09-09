@@ -18,24 +18,28 @@ def generate_mock_pdfs():
     if not os.path.exists(DEMO_DIR):
         os.makedirs(DEMO_DIR)
         
-    existing_files = [f for f in os.listdir(DEMO_DIR) if f.endswith('.pdf') or f.endswith('.docx')]
-    if existing_files:
-        return
-        
-    print(f"[{DEMO_DIR}] is empty. Generating mock demo documents...")
+    print(f"[{DEMO_DIR}] Checking demo documents... Generating 10-page mock documents...")
     
     # 1. Consigne RH 04
     pdf1 = FPDF()
-    pdf1.add_page()
-    pdf1.set_font("Arial", size=12)
-    pdf1.multi_cell(0, 10, text="REGLEMENTATION DU TRAVAIL ET TEMPS DE REPOS\nLe repos minimum entre deux services est de douze heures. Cette regle est strictement appliquee a l ensemble du personnel roulant et des agents de conduite de CAMRAIL pour garantir la securite des circulations ferroviaires.")
+    for i in range(10):
+        pdf1.add_page()
+        pdf1.set_font("Arial", size=12)
+        if i == 5:
+            pdf1.multi_cell(0, 10, text="REGLEMENTATION DU TRAVAIL ET TEMPS DE REPOS\nLe repos minimum entre deux services est de douze heures. Cette regle est strictement appliquee a l ensemble du personnel roulant et des agents de conduite de CAMRAIL pour garantir la securite des circulations ferroviaires.")
+        else:
+            pdf1.multi_cell(0, 10, text=f"Page {i+1}\n" + "Contenu de remplissage standard pour les consignes RH. Ceci est utilise pour tester l extraction de texte sur de longs documents. " * 30)
     pdf1.output(os.path.join(DEMO_DIR, "Consigne_RH_04.pdf"))
     
     # 2. Programmation Java
     pdf2 = FPDF()
-    pdf2.add_page()
-    pdf2.set_font("Arial", size=12)
-    pdf2.multi_cell(0, 10, text="Chapitre 2: Introduction a Java\nJava est un langage oriente objet tres utilise en entreprise. Chapitre 3: L'heritage permet de creer des hierarchies de classes. Chapitre 4: Le polymorphisme.")
+    for i in range(10):
+        pdf2.add_page()
+        pdf2.set_font("Arial", size=12)
+        if i == 8:
+            pdf2.multi_cell(0, 10, text="Chapitre 2: Introduction a Java\nJava est un langage oriente objet tres utilise en entreprise. Chapitre 3: L'heritage permet de creer des hierarchies de classes. Chapitre 4: Le polymorphisme.")
+        else:
+            pdf2.multi_cell(0, 10, text=f"Page {i+1}\n" + "Texte de remplissage pour le manuel de programmation Java. " * 40)
     pdf2.output(os.path.join(DEMO_DIR, "Formation_Java_Chap_2_4.pdf"))
 
     # 3. Golden Set DOCX files
@@ -54,7 +58,16 @@ def generate_mock_pdfs():
         for filename, content in docs.items():
             doc = Document()
             doc.add_heading(filename.replace('.docx', ''), 0)
-            doc.add_paragraph(content)
+            
+            for i in range(10):
+                if i == 7:
+                    doc.add_paragraph(content)
+                else:
+                    doc.add_paragraph(f"Page {i+1}\n" + "Texte générique ferroviaire de remplissage pour tester les performances du système RAG sur de grands documents avec beaucoup de bruit. " * 30)
+                
+                if i < 9:
+                    doc.add_page_break()
+                    
             doc.save(os.path.join(DEMO_DIR, filename))
     except ImportError:
         print("python-docx non installé, impossible de générer les fichiers .docx pour le golden set.")
