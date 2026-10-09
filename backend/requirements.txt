@@ -76,3 +76,7 @@ typing-inspection==0.4.2
 typing_extensions==4.16.0
 uvicorn==0.52.1
 google-generativeai
+authlib
+itsdangerous
+ollama
+pytz

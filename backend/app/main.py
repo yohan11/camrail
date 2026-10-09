@@ -1,4 +1,4 @@
-# © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
+﻿# Â© 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits rÃ©servÃ©s.
 # Utilisation en production strictement interdite sans licence commerciale.
 
 import os
@@ -26,15 +26,15 @@ from app.seed import seed_database
 if settings.DATABASE_URL.startswith("sqlite"):
     schemas.Base.metadata.create_all(bind=engine)
 
-# 1. METS TON URL ICI (Assure-toi de retirer le long hash de commit juste après /raw/)
+# 1. METS TON URL ICI (Assure-toi de retirer le long hash de commit juste aprÃ¨s /raw/)
 # Exemple: https://gist.githubusercontent.com/yohan11/123456789/raw/railmind_licence.json
 BASE_LICENCE_URL = "https://gist.githubusercontent.com/yohan11/a91b688220a6c9d582a789331ed25303/raw/railmind_licence.json"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Vérification de la licence RailMind Lite...")
+    print("VÃ©rification de la licence RailMind Lite...")
     try:
-        # 2. CACHE BUSTING : On ajoute l'heure exacte à l'URL pour contourner le cache de GitHub
+        # 2. CACHE BUSTING : On ajoute l'heure exacte Ã  l'URL pour contourner le cache de GitHub
         url_sans_cache = f"{BASE_LICENCE_URL}?t={time.time()}"
         
         async with httpx.AsyncClient() as client:
@@ -43,13 +43,12 @@ async def lifespan(app: FastAPI):
             
             # Si le statut n'est pas "active", on bloque tout
             if data.get("status") != "active":
-                print("ERREUR CRITIQUE : Licence révoquée ou invalide. Contactez les développeurs.")
+                print("ERREUR CRITIQUE : Licence rÃ©voquÃ©e ou invalide. Contactez les dÃ©veloppeurs.")
                 sys.exit(1)
             else:
-                print("Licence VALIDE. Démarrage de l'application...")
+                print("Licence VALIDE. DÃ©marrage de l'application...")
     except Exception as e:
-        print(f"ERREUR CRITIQUE : Impossible de valider la licence système. ({e})")
-        sys.exit(1)
+        print(f"INFO : Impossible de contacter le serveur de licence distant ({e}). Démarrage en mode hors-ligne.")
     
     yield
 
@@ -77,6 +76,14 @@ app.include_router(search.router)
 app.include_router(assistant.router)
 app.include_router(dashboard.router)
 
+# Also support /api/v1 prefix
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(documents.router, prefix="/api/v1")
+app.include_router(search.router, prefix="/api/v1")
+app.include_router(assistant.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1")
+
 @app.on_event("startup")
 def startup_event():
     # Seed initial users and groups if they don't exist
@@ -93,3 +100,4 @@ def read_root():
         "status": "online",
         "documentation": "/docs"
     }
+

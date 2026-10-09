@@ -116,9 +116,33 @@ def hybrid_search(
         if dist is not None:
             chunk_distances[chunk.id] = float(dist)
 
+    import numpy as np
+    q_emb_arr = np.array(query_emb)
+    norm_q = float(np.linalg.norm(q_emb_arr))
+
+    import numpy as np
+    q_emb_arr = np.array(query_emb)
+    norm_q = float(np.linalg.norm(q_emb_arr))
+
     for rank, (chunk, doc) in enumerate(lexical_results, start=1):
         chunk_scores[chunk.id] = chunk_scores.get(chunk.id, 0.0) + (1.0 / (60.0 + rank))
         chunk_map[chunk.id] = (chunk, doc)
+        if chunk.id not in chunk_distances and chunk.embedding is not None:
+            c_emb_arr = np.array(chunk.embedding)
+            norm_c = float(np.linalg.norm(c_emb_arr))
+            if norm_c > 0 and norm_q > 0:
+                cos_sim = float(np.dot(c_emb_arr, q_emb_arr) / (norm_c * norm_q))
+                chunk_distances[chunk.id] = float(max(0.0, 1.0 - cos_sim))
+            else:
+                chunk_distances[chunk.id] = 1.0
+        if chunk.id not in chunk_distances and chunk.embedding is not None:
+            c_emb_arr = np.array(chunk.embedding)
+            norm_c = float(np.linalg.norm(c_emb_arr))
+            if norm_c > 0 and norm_q > 0:
+                cos_sim = float(np.dot(c_emb_arr, q_emb_arr) / (norm_c * norm_q))
+                chunk_distances[chunk.id] = float(max(0.0, 1.0 - cos_sim))
+            else:
+                chunk_distances[chunk.id] = 1.0
 
     if not chunk_scores:
         return []

@@ -13,6 +13,17 @@ from app.services.connectivity import is_online
 logger = logging.getLogger(__name__)
 
 def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
+    abstain_indicators = [
+        "ne trouve pas cette information",
+        "cannot find this information",
+        "ne peut pas être confirmée",
+        "cannot be confirmed",
+        "pas mentionné",
+        "not mentioned",
+        "aucun document"
+    ]
+    if any(ind in answer_text.lower() for ind in abstain_indicators):
+        return []
     # Find all [X], (X), or [Source X] in the answer
     matches = re.findall(r'(?i)\[(\d+)\]|\((\d+)\)|\[source\s*(\d+)\]', answer_text)
     used_indices = set()
@@ -145,7 +156,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]], language: 
     # 1. Filter irrelevant results based on vector_distance
     for res in search_results:
         v_dist = res.get("vector_distance")
-        if v_dist is not None and v_dist >= settings.RAG_MIN_CONFIDENCE:
+        if v_dist is None or v_dist >= settings.RAG_MIN_CONFIDENCE:
             continue
         filtered_results.append(res)
         

@@ -33,6 +33,7 @@ class MessageResponse(BaseModel):
     content: str
     created_at: str
     citations: Optional[List[Dict[str, Any]]] = None
+    confidence: Optional[str] = None
 
 @router.get("/conversations", response_model=List[ConversationResponse])
 def get_conversations(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
@@ -62,7 +63,8 @@ def get_conversation_messages(conversation_id: int, current_user=Depends(get_cur
             "role": m.role,
             "content": m.content,
             "created_at": m.created_at.isoformat(),
-            "citations": cits
+            "citations": cits,
+            "confidence": m.confidence
         })
     return result
 

@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import hashlib
 from typing import List
@@ -19,6 +19,12 @@ def embed_text(text: str) -> List[float]:
     if not text or not text.strip():
         return [0.0] * 384
     emb = _model.encode(text, normalize_embeddings=True)
+    import numpy as np
+    if np.isnan(emb).any():
+        emb = np.nan_to_num(emb, nan=0.0)
+        norm = np.linalg.norm(emb)
+        if norm > 0:
+            emb = emb / norm
     return emb.tolist()
 
 
@@ -107,8 +113,8 @@ def index_document(document_id: int, db: Session) -> int:
         if not page_text:
             continue
 
-        # Heuristique simple de détection de section pour le PoC:
-        # Ligne courte (<80 chars), sans ponctuation finale, précédant le reste de la page
+        # Heuristique simple de dÃ©tection de section pour le PoC:
+        # Ligne courte (<80 chars), sans ponctuation finale, prÃ©cÃ©dant le reste de la page
         section = None
         lines = page_text.split("\n")
         if lines:
@@ -121,7 +127,7 @@ def index_document(document_id: int, db: Session) -> int:
             # Calcul du hash SHA-256 du contenu
             content_hash = hashlib.sha256(piece.encode("utf-8")).hexdigest()
             
-            # Déduplication: ignorer ce chunk s'il est déjà présent dans ce document
+            # DÃ©duplication: ignorer ce chunk s'il est dÃ©jÃ  prÃ©sent dans ce document
             if content_hash in seen_hashes:
                 continue
             seen_hashes.add(content_hash)
@@ -146,3 +152,4 @@ def index_document(document_id: int, db: Session) -> int:
 
     db.commit()
     return created_count
+

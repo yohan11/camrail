@@ -124,7 +124,7 @@ function AssistantContent() {
               role: m.role,
               content: m.content,
               citations: m.citations || [],
-              confidence: m.role === 'assistant' ? 'medium' : undefined // Basic fallback for UI
+              confidence: m.confidence || (m.role === 'assistant' ? 'medium' : undefined)
             })));
           }
         })

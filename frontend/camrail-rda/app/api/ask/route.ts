@@ -37,11 +37,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const backendUrl = process.env.BACKEND_URL;
-
-    if (!backendUrl) {
-      throw new Error("BACKEND_URL manquante dans .env.local");
-    }
+    const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
     // Require the caller to provide an Authorization header (user JWT).
     const incomingAuth = request.headers.get("authorization");
