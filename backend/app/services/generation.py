@@ -20,33 +20,44 @@ def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
         "cannot be confirmed",
         "pas mentionné",
         "not mentioned",
-        "aucun document"
+        "aucun document",
+        "ne contiennent aucune information",
+        "ne contient aucune information",
+        "impossible de répondre",
+        "ne permettent pas de répondre",
+        "impossible to answer"
     ]
     if any(ind in answer_text.lower() for ind in abstain_indicators):
         return []
-    # Find all [X], (X), or [Source X] in the answer
-    matches = re.findall(r'(?i)\[(\d+)\]|\((\d+)\)|\[source\s*(\d+)\]', answer_text)
+        
+    # Find all [X], (X), [Source X], Source X, or Extrait X in the answer
+    matches = re.findall(r'(?i)\[(?:source\s*)?(\d+)\]|\((\d+)\)|source\s*(\d+)|extrait\s*(\d+)', answer_text)
     used_indices = set()
     for match in matches:
-        # match is a tuple like ('1', '', '') or ('', '2', '')
         for m in match:
             if m:
                 used_indices.add(int(m))
     
-    # If no citations were used or found, return empty
-    if not used_indices:
-        return []
-        
     final_citations = []
     seen_front = set()
-    for cit in all_citations:
-        if cit["llm_index"] in used_indices:
+    
+    if used_indices:
+        for cit in all_citations:
+            if cit.get("llm_index") in used_indices:
+                key = (cit["document_id"], cit["page_start"])
+                if key not in seen_front:
+                    seen_front.add(key)
+                    cit_copy = cit.copy()
+                    cit_copy.pop("llm_index", None)
+                    final_citations.append(cit_copy)
+    else:
+        # Fallback to top supplied citations when model answered legitimately without formatting brackets
+        for cit in all_citations[:2]:
             key = (cit["document_id"], cit["page_start"])
             if key not in seen_front:
                 seen_front.add(key)
-                # Remove internal llm_index for the frontend
                 cit_copy = cit.copy()
-                del cit_copy["llm_index"]
+                cit_copy.pop("llm_index", None)
                 final_citations.append(cit_copy)
                 
     return final_citations
@@ -87,7 +98,7 @@ def _generate_with_ollama(system_prompt: str, user_message: str) -> str:
             {"role": "user", "content": full_prompt}
         ],
         "stream": False,
-        "options": {"temperature": 0.0, "num_predict": 200, "num_ctx": 2048}
+        "options": {"temperature": 0.0, "num_predict": 180, "num_ctx": 4096, "num_thread": 8}
     }
     
     ollama_url = f"{settings.OLLAMA_BASE_URL}/api/chat"
@@ -186,7 +197,8 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]], language: 
         page = res.get("page_start", "?")
         excerpt = res.get("excerpt", "")
         
-        user_message += f"Extrait {i} (source : {title}, page {page}) :\n<extrait>\n{excerpt}\n</extrait>\n\n"
+        excerpt_clean = excerpt[:1200] + "..." if len(excerpt) > 1200 else excerpt
+        user_message += f"Extrait {i} (source : {title}, page {page}) :\n<extrait>\n{excerpt_clean}\n</extrait>\n\n"
         
         doc_id = res.get("document_id", 0)
         
@@ -202,7 +214,7 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]], language: 
             "score": res.get("score")
         })
         
-    user_message += "Réponds à la question en te basant uniquement sur ces extraits."
+    user_message += "Answer the question based only on these excerpts." if language == "en" else "Réponds à la question en te basant uniquement sur ces extraits."
     
     # --- AUTOMATIC ROUTER ---
     # 1. On effectue le test HTTP ultra-rapide (2s max).
@@ -241,6 +253,9 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]], language: 
 
     final_citations = extract_and_filter_citations(answer_text, all_citations)
     
+    if not final_citations:
+        confidence = "insufficient"
+
     return {
         "answer": answer_text,
         "confidence": confidence,

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2:3b"
-    RAG_MIN_CONFIDENCE: float = 0.52
+    RAG_MIN_CONFIDENCE: float = 0.75
     
     TESSERACT_CMD_PATH: str = ""
     
