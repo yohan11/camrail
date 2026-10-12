@@ -1,3 +1,4 @@
+import os
 from sqlalchemy import (
     Column,
     Integer,
@@ -99,6 +100,18 @@ class Document(Base):
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
     referenced_rules = relationship("Rule", back_populates="source_document")
     security_groups = relationship("SecurityGroup", secondary=document_security_groups, back_populates="documents")
+
+    @property
+    def file_type(self) -> str:
+        if not self.file_url:
+            return "other"
+        ext = os.path.splitext(self.file_url)[1].lower()
+        if ext == ".pdf":
+            return "pdf"
+        elif ext in [".docx", ".doc"]:
+            return "docx"
+        return "other"
+
 
 
 class DocumentPage(Base):

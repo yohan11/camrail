@@ -8,15 +8,23 @@ class AssistantQueryRequest(BaseModel):
     category: Optional[str] = Field(None, description="Optional filter by category")
     language: str = Field("fr", description="The language of the query and expected response ('fr' or 'en')")
 
+class EvidenceUnit(BaseModel):
+    text: str
+    page_number: int
+    score: float
+
 class CitationItem(BaseModel):
     document_id: int
     document_title: str
-    document_version: str
+    document_version: str = "1.0"
     page_start: int
     page_end: int
     section: Optional[str] = None
     excerpt: str
     score: Optional[float] = None
+    chunk_id: Optional[int] = None
+    evidence: Optional[List[EvidenceUnit]] = []
+    pagination_type: Optional[str] = "native"
 
     model_config = ConfigDict(from_attributes=True)
 

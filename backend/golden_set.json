@@ -148,5 +148,36 @@
     "expected_document_title": null,
     "expected_page": null,
     "category": "hors-sujet"
+  },
+  {
+    "question": "À partir de quelle vitesse sur une ligne nouvelle un train est-il qualifié de grande vitesse ?",
+    "expected_document_title": "04_trains_grande_vitesse.docx",
+    "expected_page": 8,
+    "category": "Grande Vitesse",
+    "expected_evidence_keywords": [
+      "250 km/h",
+      "grande vitesse"
+    ]
+  },
+  {
+    "question": "Quel organisme est chargé de délivrer les autorisations de circulation ferroviaire en France ?",
+    "expected_document_title": "05_securite_ferroviaire_reglementation.docx",
+    "expected_page": 8,
+    "category": "Sécurité",
+    "expected_evidence_keywords": [
+      "EPSF",
+      "autorisations de circulation"
+    ]
+  },
+  {
+    "question": "De quels éléments est composée une voie ferrée classique ?",
+    "expected_document_title": "02_infrastructure_voie_ferree.docx",
+    "expected_page": 8,
+    "category": "Infrastructure",
+    "expected_evidence_keywords": [
+      "rails",
+      "traverses",
+      "ballast"
+    ]
   }
 ]

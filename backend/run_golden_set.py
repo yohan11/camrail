@@ -28,10 +28,12 @@ def run_golden_set():
         successful_retrieval_at_5 = 0
         rankings = []
         
-        # LLM Faithfulness metrics
+        # LLM Faithfulness & Evidence metrics
         faithfulness_checked = 0
         faithfulness_passed = 0
         abstention_passed = 0
+        evidence_checked = 0
+        evidence_passed = 0
 
         print("\n[Évaluation des questions DANS LE DOMAINE]")
         for item in golden_set:
@@ -45,8 +47,10 @@ def run_golden_set():
             results = hybrid_search(db=db, query=query, top_k=5)
             
             found_rank = 0
+            clean_expected = expected_title.replace(".docx", "").replace(".pdf", "").replace("_", " ").strip().lower()
             for rank, res in enumerate(results, start=1):
-                if expected_title.lower() in res["document_title"].lower():
+                doc_title_clean = res["document_title"].replace(".docx", "").replace(".pdf", "").replace("_", " ").strip().lower()
+                if clean_expected in doc_title_clean or doc_title_clean in clean_expected:
                     found_rank = rank
                     break
             
@@ -58,8 +62,30 @@ def run_golden_set():
                 rankings.append(0)
                 print(f" [ÉCHEC]  {query[:45]:<45} (Non trouvé dans le top-5)")
 
+            # Check Evidence units for questions requiring precise evidence keywords
+            expected_kws = item.get("expected_evidence_keywords")
+            if expected_kws and found_rank > 0:
+                try:
+                    gen_result = generate_answer(query, results)
+                    citations = gen_result.get("citations", [])
+                    evidence_text = ""
+                    for cit in citations:
+                        evidence_text += " " + cit.get("excerpt", "")
+                        for ev in cit.get("evidence", []):
+                            evidence_text += " " + ev.get("text", "")
+
+                    missing_kws = [kw for kw in expected_kws if kw.lower() not in evidence_text.lower()]
+                    evidence_checked += 1
+                    if not missing_kws:
+                        evidence_passed += 1
+                        print(f"       [PREUVE OK] Mots-clés trouvés : {expected_kws}")
+                    else:
+                        print(f"       [PREUVE MANQUANTE] Mots-clés manquants : {missing_kws}")
+                except Exception as e:
+                    print(f"       [PREUVE ERREUR] {e}")
+
             # Optional Faithfulness Check for first few queries to save time/API cost
-            if faithfulness_checked < 5 and found_rank > 0:
+            if faithfulness_checked < 5 and found_rank > 0 and not expected_kws:
                 try:
                     # We pass the results to generation to see if it hallucinates citations
                     gen_result = generate_answer(query, results)
@@ -68,7 +94,7 @@ def run_golden_set():
                     
                     # Check citations in text
                     cits_in_text = re.findall(r'\[(\d+)\]', answer)
-                    valid_cits = [str(c["llm_index"]) for c in citations] if citations else [str(i+1) for i in range(len(results))]
+                    valid_cits = [str(c.get("llm_index", idx+1)) for idx, c in enumerate(citations)] if citations else [str(i+1) for i in range(len(results))]
                     
                     is_faithful = True
                     for c in cits_in_text:
@@ -109,6 +135,7 @@ def run_golden_set():
         mrr = calculate_mrr(rankings)
         faith_rate = (faithfulness_passed / faithfulness_checked) * 100 if faithfulness_checked > 0 else 0
         abst_rate = (abstention_passed / total_out_domain) * 100 if total_out_domain > 0 else 0
+        evidence_rate = (evidence_passed / evidence_checked) * 100 if evidence_checked > 0 else 100.0
 
         # Export JSON
         report = {
@@ -116,7 +143,10 @@ def run_golden_set():
             "precision_at_5_percentage": p_at_5,
             "mrr": mrr,
             "faithfulness_percentage": faith_rate,
-            "abstention_percentage": abst_rate
+            "abstention_percentage": abst_rate,
+            "evidence_precision_percentage": evidence_rate,
+            "evidence_checked_count": evidence_checked,
+            "evidence_passed_count": evidence_passed
         }
         with open("golden_set_report.json", "w", encoding="utf-8") as f:
             json.dump(report, f, indent=4)

@@ -167,6 +167,8 @@ def hybrid_search(
         excerpt = chunk.content or ""
 
         is_full_doc = meta.get("is_full_document_citation", False)
+        pagination_type = meta.get("pagination_type", "native")
+        segments = meta.get("segments", [])
 
         formatted_results.append({
             "chunk_id": chunk.id,
@@ -175,6 +177,9 @@ def hybrid_search(
             "document_version": doc.version,
             "page_start": chunk.page_start,
             "page_end": chunk.page_end,
+            "pagination_type": pagination_type,
+            "segments": segments,
+            "content": chunk.content or "",
             "excerpt": excerpt,
             "score": round(score, 6),
             "vector_distance": vector_dist,

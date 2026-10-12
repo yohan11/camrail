@@ -27,6 +27,31 @@ function AssistantContent() {
 
   const { language, t } = useLanguage();
 
+  const handleViewInDocument = (cit: Citation) => {
+    if (!cit.document_id) return;
+    const targetPage = cit.evidence && cit.evidence.length > 0
+      ? cit.evidence[0].page_number
+      : (cit.page_start || 1);
+
+    const evidencePayload = {
+      savedAt: Date.now(),
+      items: cit.evidence && cit.evidence.length > 0
+        ? cit.evidence.map(e => ({ page_number: e.page_number, text: e.text }))
+        : [{ page_number: targetPage, text: cit.excerpt }]
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(`evidence:${cit.document_id}`, JSON.stringify(evidencePayload));
+      } catch (e) {
+        console.error("Erreur lors de la sauvegarde de l'evidence dans localStorage:", e);
+      }
+    }
+
+    router.push(`/documents/${cit.document_id}?page=${targetPage}&ev=0`);
+  };
+
+
   const confidenceConfig = {
     high: {
       label: language === 'fr' ? "Confiance élevée" : "High confidence",
@@ -391,29 +416,60 @@ function AssistantContent() {
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                               {language === 'fr' ? `Sources utilisées (${message.citations.length})` : `Sources used (${message.citations.length})`}
                             </p>
-                            <div className="flex flex-wrap gap-3">
-                              {message.citations.map((cit, idx) => (
-                                <Link 
-                                  key={idx}
-                                  href={`/documents/${cit.document_id}#page=${cit.page_start}&search=${encodeURIComponent((cit.excerpt.length > 50 ? cit.excerpt.substring(Math.floor(cit.excerpt.length/2) - 25, Math.floor(cit.excerpt.length/2) + 25) : cit.excerpt).replace(/\n/g, ' ').trim())}&words=${encodeURIComponent(message.content.replace(/\n/g, ' ').trim())}&excerpt=${encodeURIComponent(cit.excerpt.trim())}`}
-                                  className="group flex flex-col p-4 rounded-xl border border-slate-200 bg-white hover:border-camrail-red hover:shadow-sm transition-all w-64"
-                                >
-                                  <div className="mb-1">
-                                    <span className="text-xs text-camrail-red font-bold uppercase tracking-wider">Source {idx + 1}</span>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {message.citations.map((cit, idx) => {
+                                const isVirtual = cit.pagination_type === "virtual";
+                                const pagePrefix = isVirtual ? "≈ " : "";
+                                const pageBadge = cit.page_start === cit.page_end
+                                  ? `${pagePrefix}Page ${cit.page_start}`
+                                  : `${pagePrefix}Pages ${cit.page_start}-${cit.page_end}`;
+                                const proofText = (cit.evidence && cit.evidence.length > 0 ? cit.evidence[0].text : cit.excerpt) || "";
+
+                                return (
+                                  <div 
+                                    key={idx}
+                                    className="group flex flex-col justify-between p-4 rounded-xl border border-slate-200 bg-white hover:border-camrail-red hover:shadow-sm transition-all"
+                                  >
+                                    <div>
+                                      <div className="flex items-center justify-between gap-2 mb-2">
+                                        <span className="text-[11px] font-bold text-camrail-red uppercase tracking-wider">
+                                          Source {idx + 1}
+                                        </span>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${isVirtual ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700'}`}>
+                                          {pageBadge}
+                                        </span>
+                                      </div>
+
+                                      <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-camrail-red mb-2 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400 group-hover:text-camrail-red transition-colors"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                        <span className="truncate">{cit.document_title}</span>
+                                      </h4>
+
+                                      {/* Preuve complète dans un encadré visible */}
+                                      {proofText && (
+                                        <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-mono italic leading-relaxed select-text">
+                                          &ldquo;{proofText}&rdquo;
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {cit.document_id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleViewInDocument(cit)}
+                                        className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-camrail-red hover:text-white text-xs font-semibold text-slate-700 transition-colors"
+                                      >
+                                        <span>{language === 'fr' ? 'Voir dans le document' : 'View in document'}</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                                      </button>
+                                    )}
                                   </div>
-                                  <h4 className="text-sm font-semibold text-slate-800 truncate group-hover:text-camrail-red mb-2 flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400 group-hover:text-camrail-red transition-colors"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                                    <span className="truncate">{cit.document_title}</span>
-                                  </h4>
-                                  <div className="flex flex-col gap-1 text-xs text-slate-500">
-                                    {cit.document_version && <span>Version {cit.document_version}</span>}
-                                    {cit.page_start > 0 && <span>Page {cit.page_start}</span>}
-                                  </div>
-                                </Link>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
+
                       </div>
                     )}
                   </div>

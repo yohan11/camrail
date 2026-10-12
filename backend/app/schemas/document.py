@@ -11,6 +11,7 @@ class DocumentCreate(BaseModel):
 
 class DocumentResponse(BaseModel):
     id: int
+    file_type: str = "other"
     title: str
     family_key: Optional[str] = None
     version: str
@@ -33,6 +34,7 @@ class DocumentPageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class DocumentDetailResponse(DocumentResponse):
+    file_type: str = "other"
     pages: List[DocumentPageResponse] = []
 
     model_config = ConfigDict(from_attributes=True)

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     CHUNK_SIZE_WORDS: int = 150
     CHUNK_OVERLAP_WORDS: int = 30
     DOCX_WORDS_PER_VIRTUAL_PAGE: int = 450
+    EVIDENCE_MIN_SCORE: float = 0.30
     
     TESSERACT_CMD_PATH: str = ""
     

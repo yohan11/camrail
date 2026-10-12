@@ -1,0 +1,10 @@
+{
+    "total_questions_in_domain": 22,
+    "precision_at_5_percentage": 86.36363636363636,
+    "mrr": 0.7727272727272727,
+    "faithfulness_percentage": 80.0,
+    "abstention_percentage": 100.0,
+    "evidence_precision_percentage": 100.0,
+    "evidence_checked_count": 3,
+    "evidence_passed_count": 3
+}

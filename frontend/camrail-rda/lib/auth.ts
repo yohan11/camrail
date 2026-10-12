@@ -47,12 +47,22 @@ export function getSession(): AuthSession | null {
 export function clearSession(): void {
   inMemoryToken = null;
 
-  if (!storageAvailable()) return;
-
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-  } catch {
-    // ignore
+  if (typeof window !== "undefined") {
+    try {
+      if (window.sessionStorage) {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+      if (window.localStorage) {
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const key = window.localStorage.key(i);
+          if (key && key.startsWith("evidence:")) {
+            window.localStorage.removeItem(key);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 }
 

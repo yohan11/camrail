@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 
 from app.config import settings
 from app.services.connectivity import is_online
+from app.services.evidence import select_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,6 @@ def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
                 if key not in seen_front:
                     seen_front.add(key)
                     cit_copy = cit.copy()
-                    cit_copy.pop("llm_index", None)
                     final_citations.append(cit_copy)
     else:
         # Fallback to top supplied citations when model answered legitimately without formatting brackets
@@ -57,7 +57,6 @@ def extract_and_filter_citations(answer_text: str, all_citations: list) -> list:
             if key not in seen_front:
                 seen_front.add(key)
                 cit_copy = cit.copy()
-                cit_copy.pop("llm_index", None)
                 final_citations.append(cit_copy)
                 
     return final_citations
@@ -194,23 +193,37 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]], language: 
     # 2. Build citations and LLM context
     for i, res in enumerate(filtered_results, start=1):
         title = res.get("document_title", "Document inconnu")
-        page = res.get("page_start", "?")
-        excerpt = res.get("excerpt", "")
+        p_start = res.get("page_start", "?")
+        p_end = res.get("page_end", p_start)
+        p_type = res.get("pagination_type", "native")
+        content = res.get("content") or res.get("excerpt", "")
+        segments = res.get("segments", [])
         
-        excerpt_clean = excerpt[:1200] + "..." if len(excerpt) > 1200 else excerpt
-        user_message += f"Extrait {i} (source : {title}, page {page}) :\n<extrait>\n{excerpt_clean}\n</extrait>\n\n"
+        if str(p_start) != str(p_end) and str(p_end) != "?":
+            page_label = f"pages {p_start}-{p_end}"
+        else:
+            page_label = f"page {p_start}"
+            
+        if p_type == "virtual":
+            page_label = f"≈ {page_label}"
+            
+        excerpt_clean = content[:1200] + "..." if len(content) > 1200 else content
+        user_message += f"Extrait {i} (source : {title}, {page_label}) :\n<extrait>\n{excerpt_clean}\n</extrait>\n\n"
         
         doc_id = res.get("document_id", 0)
         
         all_citations.append({
             "llm_index": i,
+            "chunk_id": res.get("chunk_id"),
             "document_id": doc_id,
             "document_title": title,
             "document_version": res.get("document_version", "1.0"),
-            "page_start": page,
-            "page_end": res.get("page_end", page),
+            "page_start": p_start,
+            "page_end": p_end,
             "section": res.get("section"),
-            "excerpt": excerpt[:200] + "..." if len(excerpt) > 200 else excerpt,
+            "pagination_type": p_type,
+            "content": content,
+            "segments": segments,
             "score": res.get("score")
         })
         
@@ -252,6 +265,39 @@ def generate_answer(query: str, search_results: List[Dict[str, Any]], language: 
         answer_text = "Je n'ai pas pu générer de réponse à partir des modèles d'IA (réponse vide)."
 
     final_citations = extract_and_filter_citations(answer_text, all_citations)
+    
+    # Process evidence units only for actually cited chunks
+    for cit in final_citations:
+        llm_idx = cit.get("llm_index")
+        claim_text = ""
+        if llm_idx is not None:
+            marker_pattern = rf'(?:\[(?:source\s*)?{llm_idx}\]|\({llm_idx}\)|\bsource\s*{llm_idx}\b|\bextrait\s*{llm_idx}\b)'
+            sentences = re.split(r'(?<=[.!?])\s+', answer_text)
+            matching_sents = [s.strip() for s in sentences if re.search(marker_pattern, s, re.IGNORECASE)]
+            if matching_sents:
+                raw_claim = " ".join(matching_sents)
+                claim_text = re.sub(r'\[\d+\]|\(\d+\)', '', raw_claim).strip()
+
+        if not claim_text:
+            claim_text = query.strip()
+
+        ev_units = select_evidence(cit, claim_text, max_units=2)
+        if not ev_units:
+            fallback_page = cit.get("page_start", 1)
+            fallback_text = (cit.get("content") or "")[:600]
+            ev_units = [{
+                "text": fallback_text,
+                "page_number": fallback_page,
+                "score": round(float(cit.get("score") or 0.0), 4)
+            }]
+
+        cit["evidence"] = ev_units
+        cit["excerpt"] = ev_units[0]["text"]  # Untruncated full text of first evidence unit
+        
+        # Clean internal fields
+        cit.pop("llm_index", None)
+        cit.pop("content", None)
+        cit.pop("segments", None)
     
     if not final_citations:
         confidence = "insufficient"

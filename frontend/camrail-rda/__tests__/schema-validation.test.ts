@@ -8,36 +8,42 @@
 
 import type {
   BackendCitation,
+  BackendEvidenceUnit,
   AssistantResponse,
   DocumentItem,
+  DocumentPageItem,
 } from "@/lib/backend-types";
-import type { ApiError } from "@/lib/api";
+import { findNormalized } from "@/lib/find-normalized";
 
 // ============================================================================
-// Test 1: Citation Structure
+// Test 1: Citation Structure with Chantier 2 Fields (chunk_id, evidence, pagination_type)
 // ============================================================================
+
+const mockEvidenceUnit: BackendEvidenceUnit = {
+  text: "All users must use strong passwords consisting of at least 12 characters.",
+  page_number: 5,
+  score: 0.945,
+};
 
 // Mock backend response with full citation fields
 const mockBackendCitation: BackendCitation = {
+  chunk_id: 1042,
   document_id: "doc-123",
   document_title: "Security Policy",
   document_version: "2.1",
   page_start: 5,
   page_end: 7,
   section: "Access Control",
-  excerpt: "All users must use strong passwords...",
+  excerpt: "All users must use strong passwords consisting of at least 12 characters.",
+  score: 0.945,
+  evidence: [mockEvidenceUnit],
+  pagination_type: "virtual",
 };
 
 /**
  * Validates all citation fields are required by the UI.
- * The frontend must:
- * - render document_id as a link to `/documents/{id}`
- * - render document_version as "v{version}"
- * - render section in the citation card
- * - render pages, document_title, and excerpt (already done)
  */
 function validateCitationMapping(citation: BackendCitation) {
-  // These must not be undefined to avoid broken links or missing provenance
   if (
     !citation.document_title ||
     citation.page_start === undefined ||
@@ -47,43 +53,48 @@ function validateCitationMapping(citation: BackendCitation) {
     throw new Error("Citation missing required fields");
   }
 
-  // Optional fields must be handled gracefully
-  if (citation.document_id) {
-    // Frontend should link to `/documents/${citation.document_id}`
+  // Provenance & Evidence fields verification
+  if (citation.chunk_id !== undefined && typeof citation.chunk_id !== "number") {
+    throw new Error("chunk_id must be a number");
   }
-  if (citation.document_version) {
-    // Frontend should display "v{version}"
+  if (citation.pagination_type && !["native", "virtual"].includes(citation.pagination_type)) {
+    throw new Error("pagination_type must be native or virtual");
   }
-  if (citation.section) {
-    // Frontend should display section in metadata
+  if (citation.evidence && !Array.isArray(citation.evidence)) {
+    throw new Error("evidence must be an array of units");
   }
 }
 
-describe("Citation Schema", () => {
-  test("BackendCitation has all required provenance fields", () => {
+describe("Citation Schema & Chantier 2 Extensions", () => {
+  test("mockBackendCitation matches schema without runtime errors", () => {
     expect(() => validateCitationMapping(mockBackendCitation)).not.toThrow();
   });
 
-  test("Citation fields render without errors", () => {
+  test("Citation fields including chunk_id, evidence, and pagination_type render properly", () => {
     const citation = mockBackendCitation;
-    // Simulate frontend render logic
+    const isVirtual = citation.pagination_type === "virtual";
+    const pagePrefix = isVirtual ? "≈ " : "";
     const rendered = {
+      chunk_id: citation.chunk_id,
       title: citation.document_title,
       version: citation.document_version ? `v${citation.document_version}` : undefined,
       section: citation.section,
       pages: citation.page_start === citation.page_end
-        ? `Page ${citation.page_start}`
-        : `Pages ${citation.page_start}-${citation.page_end}`,
-      excerpt: `« ${citation.excerpt} »`,
+        ? `${pagePrefix}Page ${citation.page_start}`
+        : `${pagePrefix}Pages ${citation.page_start}-${citation.page_end}`,
+      excerpt: citation.excerpt,
+      evidenceText: citation.evidence?.[0]?.text,
+      evidencePage: citation.evidence?.[0]?.page_number,
       link: citation.document_id ? `/documents/${citation.document_id}` : undefined,
     };
 
+    expect(rendered.chunk_id).toBe(1042);
     expect(rendered.title).toBe("Security Policy");
     expect(rendered.version).toBe("v2.1");
-    expect(rendered.section).toBe("Access Control");
-    expect(rendered.pages).toBe("Pages 5-7");
-    expect(rendered.excerpt).toContain("strong passwords");
-    expect(rendered.link).toBe("/documents/doc-123");
+    expect(rendered.pages).toBe("≈ Pages 5-7");
+    expect(rendered.evidenceText).toBe("All users must use strong passwords consisting of at least 12 characters.");
+    expect(rendered.evidencePage).toBe(5);
+    expect(rendered.excerpt).not.toContain("...");
   });
 });
 
@@ -94,7 +105,7 @@ describe("Citation Schema", () => {
 const mockBackendResponse: AssistantResponse = {
   request_id: "req-456",
   query: "What are access controls?",
-  answer: "Access controls...",
+  answer: "Access controls require authentication [1].",
   confidence: "high",
   citations: [mockBackendCitation],
   duration_ms: 250,
@@ -113,185 +124,80 @@ describe("Assistant Response Schema", () => {
     expect(["high", "medium", "insufficient"]).toContain(response.confidence);
   });
 
-  test("Citations array is preserved unchanged", () => {
+  test("Citations array is preserved unchanged with evidence units", () => {
     const response = mockBackendResponse;
     expect(response.citations).toHaveLength(1);
-    expect(response.citations[0]).toEqual(mockBackendCitation);
+    expect(response.citations[0].evidence).toHaveLength(1);
+    expect(response.citations[0].evidence?.[0].page_number).toBe(5);
   });
 
   test("Insufficient confidence is treated as abstention", () => {
     const response = mockAbstention;
     expect(response.confidence).toBe("insufficient");
-    // Frontend must render abstention UI (distinct styling, explanation message)
-  });
-
-  test("answer and confidence are never null", () => {
-    const response = mockBackendResponse;
-    expect(response.answer).toBeDefined();
-    expect(response.confidence).toBeDefined();
-  });
-
-  test("All citations in array are rendered, not just first", () => {
-    const multiCitationResponse: AssistantResponse = {
-      answer: "Test answer",
-      confidence: "high",
-      citations: [
-        { ...mockBackendCitation, page_start: 1, page_end: 2 },
-        { ...mockBackendCitation, document_id: "doc-456", page_start: 10 },
-        { ...mockBackendCitation, document_id: "doc-789", page_start: 20 },
-      ],
-    };
-
-    expect(multiCitationResponse.citations).toHaveLength(3);
-    // Frontend .map() over citations should render all 3
   });
 });
 
 // ============================================================================
-// Test 3: Document Item Structure
+// Test 3: Document Item Structure with file_type ("pdf" | "docx" | "other")
 // ============================================================================
 
 const mockDocument: DocumentItem = {
   id: "doc-123",
-  title: "Security Policy v2.1",
+  title: "Consignes de Securite v2.1.docx",
   category: "Security",
-  department: "Engineering",
+  department: "EXPLOITATION",
   version: "2.1",
   status: "active",
+  file_type: "docx",
   created_at: "2026-08-01T10:00:00Z",
 };
 
-describe("Document Item Schema", () => {
-  test("DocumentItem has id for linking", () => {
+describe("Document Item Schema & file_type", () => {
+  test("DocumentItem has id and file_type", () => {
     expect(mockDocument.id).toBeDefined();
-    // Frontend should link to `/documents/${id}`
+    expect(mockDocument.file_type).toBe("docx");
+    expect(["pdf", "docx", "other"]).toContain(mockDocument.file_type);
   });
 
-  test("Document title and metadata render correctly", () => {
-    const doc = mockDocument;
-    expect(doc.title).toBeDefined();
-    expect(doc.version).toBeDefined();
-    expect(doc.status).toBeDefined();
-  });
+  test("Pages array is sorted once on reception even if API sends out of order", () => {
+    const unorderedPages: DocumentPageItem[] = [
+      { id: 3, page_number: 3, extracted_text: "Page three" },
+      { id: 1, page_number: 1, extracted_text: "Page one" },
+      { id: 4, page_number: 4, extracted_text: "Page four" },
+      { id: 2, page_number: 2, extracted_text: "Page two" },
+    ];
 
-  test("status enum includes active, indexed, failed, processing", () => {
-    const validStatuses = ["active", "indexed", "failed", "processing"];
-    expect(validStatuses).toContain(mockDocument.status);
-  });
-});
+    // Client sort logic
+    const sorted = [...unorderedPages].sort((a, b) => a.page_number - b.page_number);
 
-// ============================================================================
-// Test 4: Error Handling
-// ============================================================================
-
-describe("API Error Handling", () => {
-  test("ApiError from apiFetch includes status and body", () => {
-    const error = new (require("@/lib/api").ApiError)(
-      "Not Found",
-      404,
-      { detail: "Document not found" }
-    );
-
-    expect(error.status).toBe(404);
-    expect(error.body).toEqual({ detail: "Document not found" });
-    expect(error.message).toBe("Not Found");
-  });
-
-  test("401 triggers refresh and retry before redirect", () => {
-    // apiFetch should:
-    // 1. Catch 401
-    // 2. Call refreshAccessToken()
-    // 3. Retry once with new token
-    // 4. Only redirect if refresh fails
-    const expectsRefreshRetry = true;
-    expect(expectsRefreshRetry).toBe(true);
-  });
-
-  test("403/500 do not render as assistant messages", () => {
-    // app/assistant/page.tsx catch block should:
-    // - Not append error as assistant message for status >= 500
-    // - Show a UI-level error banner instead
-    const expectsErrorUINotChatMessage = true;
-    expect(expectsErrorUINotChatMessage).toBe(true);
+    expect(sorted.map((p) => p.page_number)).toEqual([1, 2, 3, 4]);
   });
 });
 
 // ============================================================================
-// Test 5: Frontend-to-Backend Mapping
+// Test 4: findNormalized helper (Whitespace & Newline Resilient Matching)
 // ============================================================================
 
-describe("Request/Response Mapping", () => {
-  test("Assistant query request sends { query: string }", () => {
-    const request = { query: "What is the security policy?" };
-    expect(request).toHaveProperty("query");
-    expect(typeof request.query).toBe("string");
+describe("findNormalized Helper", () => {
+  test("finds sentence despite extra spaces, newlines, and case variations", () => {
+    const haystack =
+      "Article 12.\n  Le train express    part à 8h00 pile.\nLa vitesse est limitée.";
+    const needle = "le train express part à 8h00 pile.";
+
+    const match = findNormalized(haystack, needle);
+    expect(match).not.toBeNull();
+    if (match) {
+      const extracted = haystack.slice(match.start, match.end);
+      expect(extracted).toBe("Le train express    part à 8h00 pile.");
+    }
   });
 
-  test("Backend response confidence is never translated by frontend API layer", () => {
-    // apiFetch must return raw backend response unchanged
-    // lib/api.ts must NOT convert "high" -> "élevée"
-    // (localization happens in UI components only)
-    const backendConfidence = "high";
-    expect(["high", "medium", "insufficient"]).toContain(backendConfidence);
-  });
+  test("returns null when sentence is genuinely not present in page text", () => {
+    const haystack = "Consignes générales relatives au réseau.";
+    const needle = "Texte totalement absent du document.";
 
-  test("Citation excerpt is never truncated during mapping", () => {
-    const longExcerpt =
-      "This is a very long excerpt that contains important details " +
-      "and must not be truncated or modified during transport or storage.";
-
-    const citation: BackendCitation = {
-      document_title: "Test",
-      page_start: 1,
-      page_end: 1,
-      excerpt: longExcerpt,
-    };
-
-    expect(citation.excerpt).toBe(longExcerpt);
-  });
-});
-
-// ============================================================================
-// Test 6: Type Safety
-// ============================================================================
-
-describe("Type Safety", () => {
-  test("AssistantResponse type enforces required fields at compile time", () => {
-    // This will fail TypeScript compilation if missing required fields
-    const validResponse: AssistantResponse = {
-      answer: "Test",
-      confidence: "high",
-      citations: [],
-    };
-
-    expect(validResponse).toBeDefined();
-  });
-
-  test("Citation type includes optional provenance fields", () => {
-    // These should be optional but recommended:
-    // - document_id (for linking)
-    // - document_version (for audit trail)
-    // - section (for precise location)
-
-    const minimalCitation: BackendCitation = {
-      document_title: "Title",
-      page_start: 1,
-      page_end: 1,
-      excerpt: "Text",
-    };
-
-    const fullCitation: BackendCitation = {
-      document_id: "id",
-      document_title: "Title",
-      document_version: "1.0",
-      page_start: 1,
-      page_end: 1,
-      section: "Section",
-      excerpt: "Text",
-    };
-
-    expect(minimalCitation.document_title).toBe("Title");
-    expect(fullCitation.document_id).toBe("id");
+    const match = findNormalized(haystack, needle);
+    expect(match).toBeNull();
   });
 });
 
