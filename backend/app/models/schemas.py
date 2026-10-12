@@ -95,7 +95,7 @@ class Document(Base):
 
     # Relationships
     uploader = relationship("User", back_populates="uploaded_documents")
-    pages = relationship("DocumentPage", back_populates="document", cascade="all, delete-orphan")
+    pages = relationship("DocumentPage", back_populates="document", cascade="all, delete-orphan", order_by=lambda: DocumentPage.page_number.asc())
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
     referenced_rules = relationship("Rule", back_populates="source_document")
     security_groups = relationship("SecurityGroup", secondary=document_security_groups, back_populates="documents")

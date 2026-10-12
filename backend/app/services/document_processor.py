@@ -92,13 +92,16 @@ def extract_pdf(file_path: str) -> List[Dict[str, Any]]:
 
 def extract_docx(file_path: str) -> List[Dict[str, Any]]:
     """
-    Extracts text and tables from a DOCX document using python-docx.
+    Extracts text and tables from a DOCX document using python-docx with virtual pagination.
     
-    NOTE ON DOCX PAGE SEGMENTATION LIMITATION:
+    NOTE ON DOCX VIRTUAL PAGINATION:
     The DOCX (.docx) file format is based on OpenXML flow documents and does not store
     pre-rendered physical page boundaries. Physical pagination depends entirely on
     rendering parameters (fonts, margins, target paper size). Without a heavy layout engine,
-    the entire DOCX document is extracted as a single logical page (page_number=1).
+    Word documents lack native page numbers.
+    As an approximation of Word pagination, this function segments the document into virtual
+    pages of approximately DOCX_WORDS_PER_VIRTUAL_PAGE words, ensuring that an atomic block
+    (an entire paragraph or complete markdown table) is NEVER cut across pages.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -129,14 +132,46 @@ def extract_docx(file_path: str) -> List[Dict[str, Any]]:
                     md_lines.append("| " + " | ".join(r) + " |")
                 body_elements.append("\n".join(md_lines))
     
-    full_text = "\n\n".join(body_elements)
-    method = "ocr_needed" if len(full_text.strip()) < 20 else "native"
+    if not body_elements:
+        return [{
+            "page_number": 1,
+            "text": "",
+            "method": "native"
+        }]
+
+    target_words = getattr(settings, "DOCX_WORDS_PER_VIRTUAL_PAGE", 450)
     
-    return [{
-        "page_number": 1,
-        "text": full_text,
-        "method": method
-    }]
+    pages_blocks = []
+    current_page_blocks = []
+    current_page_words = 0
+    
+    for element in body_elements:
+        elem_words = len(element.split())
+        # If adding this element exceeds the limit, and current page already has content, start a new page
+        if current_page_words + elem_words > target_words and current_page_words > 0:
+            pages_blocks.append(current_page_blocks)
+            current_page_blocks = [element]
+            current_page_words = elem_words
+        else:
+            current_page_blocks.append(element)
+            current_page_words += elem_words
+            
+    if current_page_blocks:
+        pages_blocks.append(current_page_blocks)
+        
+    num_pages = len(pages_blocks)
+    method = "virtual_pagination" if num_pages > 1 else "native"
+    
+    pages_data = []
+    for idx, blocks in enumerate(pages_blocks, start=1):
+        page_text = "\n\n".join(blocks)
+        pages_data.append({
+            "page_number": idx,
+            "text": page_text,
+            "method": method
+        })
+        
+    return pages_data
 
 
 def process_document(file_path: str, file_extension: str) -> List[Dict[str, Any]]:

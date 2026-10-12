@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2:3b"
     RAG_MIN_CONFIDENCE: float = 0.75
     
+    CHUNK_SIZE_WORDS: int = 150
+    CHUNK_OVERLAP_WORDS: int = 30
+    DOCX_WORDS_PER_VIRTUAL_PAGE: int = 450
+    
     TESSERACT_CMD_PATH: str = ""
     
     # Microsoft SSO Configuration
