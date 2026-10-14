@@ -1,7 +1,7 @@
 import re
 import numpy as np
 from typing import List, Dict, Any
-from app.services.indexing import _model
+from app.services.indexing import get_embedding_model
 from app.config import settings
 
 FRENCH_ABBREVIATIONS = [
@@ -103,9 +103,11 @@ def select_evidence(chunk: Any, claim_text: str, max_units: int = 2) -> List[Dic
     unit_texts = [u for u, _ in valid_units]
     
     # Batch encode all candidate units plus the claim text in a single model forward pass
+    # e5 requires 'passage: ' for document text and 'query: ' for claims/queries
     clean_claim = claim_text.strip() if claim_text else "information"
-    all_texts = unit_texts + [clean_claim]
-    embeddings = _model.encode(all_texts, normalize_embeddings=True)
+    all_texts = [f"passage: {u}" for u in unit_texts] + [f"query: {clean_claim}"]
+    model = get_embedding_model()
+    embeddings = model.encode(all_texts, normalize_embeddings=True)
 
     unit_embs = embeddings[:-1]
     claim_emb = embeddings[-1]

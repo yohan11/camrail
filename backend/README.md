@@ -1,83 +1,132 @@
-# CAMRAIL RailMind Lite - Backend
+# CAMRAIL RailMind Lite - Backend (100% Local, Souverain & Haute Concurrence)
 
-## Démarrage Rapide pour la Démo (Local)
+Ce sous-projet contient l'API REST FastAPI de **RailMind Lite**, le moteur RAG documentaire souverain développé pour CAMRAIL.
 
-### 1. Prérequis
-- **Python 3.12+**
-- **PostgreSQL** avec l'extension `pgvector` activée (ou utilisez Docker).
-- **LLM Provider** : 
-  - **Ollama** installé localement avec le modèle par défaut téléchargé (`llama3.2:3b` ou celui défini dans `.env`).
-  - **Ou Gemini** (Plan B) : Si vous n'avez pas de GPU, vous pouvez forcer l'utilisation de Gemini en modifiant le fichier `.env` (`LLM_PROVIDER=gemini` et `GEMINI_API_KEY=votre_cle`).
-- *(Optionnel)* **Tesseract OCR** pour démontrer le fallback OCR.
+---
 
-### 2. Commandes de lancement
-Exécutez ces commandes dans l'ordre à la racine du dossier `backend` :
+## 1. Caractéristiques d'Architecture
 
+- **100 % Local & Souverain** : Aucune dépendance vers des API cloud externes (zéro appel sortant).
+- **Moteur d'Embedding Local** : `intfloat/multilingual-e5-small` (384 dimensions) ou `BAAI/bge-m3` (1024 dimensions) stocké dans `MODELS_DIR`.
+- **Moteur LLM Local** : Inférence via Ollama (`llama3.2:3b` par défaut).
+- **Haute Concurrence (~1000 utilisateurs quotidiens)** :
+  - Découplage strict des sessions DB (zéro connexion occupée pendant l'inférence LLM).
+  - Sémaphore de concurrence avec file d'attente temporisée (60s -> HTTP 503).
+  - Rate Limiter glissant par utilisateur (10 requêtes/min -> HTTP 429).
+  - Streaming temps réel Server-Sent Events (`POST /api/v1/assistant/query/stream`).
+  - Déploiement multi-workers Uvicorn (`scripts/start_server.sh` et `.bat`).
+
+---
+
+## 2. Démarrage Rapide
+
+### Étape 1 : Choisir et activer un profil matériel
+Depuis la racine du projet ou du dossier `backend`, exécutez le sélecteur de profil :
 ```bash
-# 1. Configurer l'environnement (Ajuster DATABASE_URL si besoin)
-cp env.example .env
+# Sélection interactive ou directe (Profils A, B ou C)
+python scripts/select_profile.py A
+```
+Le profil copiera la configuration optimale dans `backend/.env`.
 
-# 2. Installer les dépendances
+### Étape 2 : Installer les dépendances Python
+Dans un environnement virtuel Python 3.12+ :
+```bash
+cd backend
 pip install -r requirements.txt
+```
 
-# 3. Mettre à jour la base de données (Schémas)
+### Étape 3 : Télécharger le modèle LLM local
+```bash
+ollama pull llama3.2:3b
+```
+
+### Étape 4 : Préparer les modèles d'embedding hors-ligne
+```bash
+python scripts/prepare_models.py
+```
+
+### Étape 5 : Initialiser la base de données PostgreSQL
+Assurez-vous que PostgreSQL est démarré avec l'extension `pgvector` :
+```bash
+# Appliquer les migrations de schéma et index HNSW/GIN
 alembic upgrade head
 
-# 4. Préparer l'environnement de démo (Création des comptes et documents)
+# Injecter les comptes et documents de démonstration
 python seed_demo.py
-
-# 5. Lancer l'API
-uvicorn app.main:app --reload
 ```
 
-L'API est maintenant disponible sur `http://localhost:8000` et la documentation interactive sur `http://localhost:8000/docs`.
+### Étape 6 : Lancer le serveur backend
+- **En mode développement (avec rechargement à chaud) :**
+  ```bash
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  ```
+- **En mode production multi-workers :**
+  ```bash
+  # Linux / macOS
+  ../scripts/start_server.sh
 
-### 3. Comptes de Démo
+  # Windows
+  ..\scripts\start_server.bat
+  ```
 
-> ⚠️ **AVERTISSEMENT** : Les comptes ci-dessous sont des comptes de démonstration à durée de vie limitée, ne contenant aucune donnée réelle. Leurs identifiants sont rendus publics dans le dépôt exclusivement pour permettre l'évaluation du projet par le jury du concours.
-
-Ces comptes sont automatiquement créés par le script de reset :
-
-- **Administrateur (Vue globale)** :
-  - Email : `admin@camrail.net`
-  - Mot de passe : `adminpassword`
-- **Gestionnaire Documentaire (Vue globale)** :
-  - Email : `docadmin@camrail.net`
-  - Mot de passe : `docadminpassword`
-- **Utilisateur Standard (Restreint au département "Formation")** :
-  - Email : `readonly@camrail.net`
-  - Mot de passe : `readonlypassword`
-
-### 4. Calibration de la Confiance RAG
-
-Le seuil `RAG_MIN_CONFIDENCE` (dans `.env` ou `config.py`) est calibré à **0.65** par défaut (distance cosinus).
-**Justification** : Après évaluation sur le golden set enrichi, un seuil strict à 0.75 rejetait trop de vrais positifs pertinents (surtout lors de correspondances multilingues ou reformulations). La valeur 0.65 offre le meilleur compromis (F1-score optimal) entre la précision de la récupération et le taux d'abstention sur les questions hors-sujet.
+L'API est accessible sur `http://localhost:8000`, la documentation sur `http://localhost:8000/docs` et la sonde de santé sur `http://localhost:8000/health`.
 
 ---
 
-## 🚨 BOUTON PANIQUE : Reset Rapide 🚨
+## 3. Déploiement avec Docker Compose
 
-En cas de problème pendant la répétition ou la démo (données corrompues, documents supprimés par erreur), voici la séquence magique pour repartir d'un environnement propre en 30 secondes :
-
-**Si vous utilisez PostgreSQL localement :**
+Pour déployer la pile complète (PostgreSQL pgvector, Backend, Frontend et optionnellement Ollama) :
 ```bash
-dropdb railmind && createdb railmind && alembic upgrade head && python seed_demo.py
-```
-
-**Si vous utilisez Docker Compose :**
-```bash
-docker compose down -v && docker compose up -d && docker compose exec api python seed_demo.py
-```
-
----
-
-## Déploiement avec Docker Compose (Optionnel)
-
-Si vous préférez lancer l'API et la base de données via Docker :
-
-> **Note :** Ollama n'est pas conteneurisé pour préserver l'accélération GPU. L'API Docker communiquera avec votre Ollama local via `host.docker.internal:11434`.
-
-```bash
+# Depuis la racine du projet
 docker compose up -d
-docker compose logs -f api
+
+# Avec le conteneur Ollama inclus :
+docker compose --profile ollama up -d
+```
+
+---
+
+## 4. Comptes de Démonstration
+
+> ⚠️ **AVERTISSEMENT** : Comptes créés par `seed_demo.py` pour l'évaluation interne.
+
+| Rôle | Email | Mot de passe | Périmètre |
+| :--- | :--- | :--- | :--- |
+| **Administrateur** | `admin@camrail.net` | `adminpassword` | Accès global & supervision |
+| **Gestionnaire Documentaire** | `docadmin@camrail.net` | `docadminpassword` | Téléversement & gestion |
+| **Agent / Utilisateur Standard** | `readonly@camrail.net` | `readonlypassword` | Restreint au département Formation |
+
+---
+
+## 5. Changement de Modèle d'Embedding & Calibration
+
+### Changer de modèle d'embedding (ex: bascule vers BGE-M3) :
+```bash
+python scripts/change_embedding_model.py --model BAAI/bge-m3 --dim 1024
+```
+Ce script modifie la colonne PostgreSQL via `ALTER TABLE`, recrée l'index HNSW et réindexe tous les documents actifs.
+
+### Calibrer le seuil de confiance RAG :
+Après tout changement de modèle, recalibrez le seuil :
+```bash
+python scripts/calibrate_threshold.py
+```
+Le résultat optimal est automatiquement enregistré dans `eval_results/calibration.json`.
+
+---
+
+## 6. Tests Automatisés
+
+```bash
+# Vérifier l'étanchéité et l'absence totale de trafic sortant
+python -m unittest tests.test_no_outbound_network
+
+# Vérifier la scalabilité, la résilience et les limites (503, 429, SSE, /health)
+python -m unittest tests.test_scalability_and_resilience
+
+# Vérifier la conformité des profils d'environnement
+python -m unittest tests.test_profiles_config
+
+# Exécuter les tests du moteur RAG
+pytest tests/test_engine_optimization.py -v
 ```

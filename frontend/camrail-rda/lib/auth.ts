@@ -157,3 +157,18 @@ export async function login(
 
   return session;
 }
+
+/**
+ * Extrait le prénom à partir de l'email avant le @ (avec majuscule)
+ * Ex: jean.dupont@camrail.net -> Jean, yohan@camrail.net -> Yohan
+ */
+export function getUserFirstName(email?: string | null): string {
+  if (!email) return "";
+  const beforeAt = email.split("@")[0] || "";
+  const rawFirstName = beforeAt.split(/[._]/)[0] || "";
+  if (!rawFirstName) return "";
+  return rawFirstName
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join("-");
+}

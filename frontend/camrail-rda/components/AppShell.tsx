@@ -14,7 +14,7 @@ export default function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [session, setSession] = useState<ReturnType<typeof getSession>>(null);
@@ -87,9 +87,9 @@ export default function AppShell({
       `}>
         {/* Sidebar Header */}
         <div className="p-6 border-b border-slate-100 flex items-center justify-between relative">
-          <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex flex-col items-center justify-center gap-3 w-full">
+          <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex flex-col items-center justify-center gap-3 w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red rounded-lg p-1">
             <img 
-              src="/camrail-logo.png" 
+              src="/camrail-logo-transparent.png" 
               alt="CAMRAIL Logo" 
               className="h-10 w-auto object-contain"
             />
@@ -98,8 +98,9 @@ export default function AppShell({
             </div>
           </Link>
           <button 
-            className="md:hidden absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            className="md:hidden absolute top-4 right-4 text-slate-500 hover:text-slate-800 p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red"
             onClick={() => setMobileMenuOpen(false)}
+            aria-label="Fermer le menu"
           >
             ✕
           </button>
@@ -116,15 +117,15 @@ export default function AppShell({
               sessionStorage.removeItem("railmind_conversation_id");
               window.location.href = "/assistant";
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-camrail-red px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 hover:shadow-md"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-camrail-red px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-camrail-red active:translate-y-px"
           >
-            <span>+</span> {t("app.new_chat")}
+            <span className="text-base font-bold">+</span> {t("app.new_chat")}
           </a>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 mt-4">{t("app.menu")}</p>
+          <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 mt-4">{t("app.menu")}</p>
           {navItems.filter((item) => {
             if (item.name === t("app.dashboard") || item.name === t("app.documents")) {
               return session?.role === 'admin' || session?.role === 'document_admin';
@@ -138,10 +139,10 @@ export default function AppShell({
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`
-                  block px-3 py-2.5 text-sm font-medium transition-colors
+                  block px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red
                   ${isActive 
-                    ? 'bg-red-50 text-camrail-red font-semibold border-l-4 border-red-600 rounded-r-lg' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg border-l-4 border-transparent'
+                    ? 'bg-red-50/70 text-camrail-red font-semibold border-l-2 border-camrail-red rounded-r-lg' 
+                    : 'text-slate-700 font-medium hover:bg-slate-100 hover:text-slate-900 rounded-lg border-l-2 border-transparent'
                   }
                 `}
               >
@@ -153,9 +154,11 @@ export default function AppShell({
           {/* Historique des discussions */}
           {session && (
             <>
-              <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 mt-6">{t("app.history")}</p>
+              <p className="px-3 text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 mt-6">{t("app.history")}</p>
               {conversations.length === 0 ? (
-                <p className="px-3 text-xs text-slate-500 italic">Aucune conversation</p>
+                <p className="px-3 text-xs text-slate-500 italic">
+                  {language === 'fr' ? 'Aucune conversation récente' : 'No recent conversations'}
+                </p>
               ) : (
                 <div className="space-y-1">
                   {conversations.map((conv) => (
@@ -163,7 +166,7 @@ export default function AppShell({
                       key={conv.id}
                       href={`/assistant?c=${conv.id}`}
                       onClick={() => setMobileMenuOpen(false)}
-                      className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 truncate"
+                      className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red"
                       title={conv.title}
                     >
                       {conv.title}
@@ -184,12 +187,13 @@ export default function AppShell({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-900">{email}</p>
-                <p className="truncate text-xs text-slate-500">{role}</p>
+                <p className="truncate text-xs font-medium text-slate-600">{role}</p>
               </div>
               <button 
                 onClick={handleLogout}
-                className="text-slate-400 hover:text-camrail-red transition-colors"
+                className="text-slate-500 hover:text-camrail-red p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red transition-colors"
                 title="Se déconnecter"
+                aria-label="Se déconnecter"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
               </button>

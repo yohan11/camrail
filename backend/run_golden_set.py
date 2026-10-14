@@ -1,3 +1,11 @@
+import os
+import sys
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 import json
 import time
 import os
@@ -17,6 +25,7 @@ def run_golden_set():
     print("=" * 70)
     print("      RAILMIND LITE - GOLDEN SET EVALUATION (ADVANCED)")
     print("=" * 70)
+    start_eval_time = time.time()
 
     db = SessionLocal()
     try:
@@ -137,6 +146,10 @@ def run_golden_set():
         abst_rate = (abstention_passed / total_out_domain) * 100 if total_out_domain > 0 else 0
         evidence_rate = (evidence_passed / evidence_checked) * 100 if evidence_checked > 0 else 100.0
 
+        elapsed_eval = time.time() - start_eval_time
+        total_eval_queries = total_in_domain + total_out_domain
+        avg_latency = elapsed_eval / total_eval_queries if total_eval_queries > 0 else 0.0
+
         # Export JSON
         report = {
             "total_questions_in_domain": total_in_domain,
@@ -146,10 +159,21 @@ def run_golden_set():
             "abstention_percentage": abst_rate,
             "evidence_precision_percentage": evidence_rate,
             "evidence_checked_count": evidence_checked,
-            "evidence_passed_count": evidence_passed
+            "evidence_passed_count": evidence_passed,
+            "total_time_seconds": round(elapsed_eval, 2),
+            "average_latency_seconds_per_query": round(avg_latency, 3)
         }
         with open("golden_set_report.json", "w", encoding="utf-8") as f:
             json.dump(report, f, indent=4)
+
+        # Save to eval_results/after_engine.json
+        for eval_dir in ["eval_results", os.path.join("..", "eval_results")]:
+            if os.path.exists(os.path.dirname(os.path.abspath(eval_dir))):
+                os.makedirs(eval_dir, exist_ok=True)
+                dest_file = os.path.join(eval_dir, "after_engine.json")
+                with open(dest_file, "w", encoding="utf-8") as f:
+                    json.dump(report, f, indent=4)
+                print(f"[OK] Sauvegarde dans {dest_file}")
 
         # Markdown Export
         md_report = f"""# Rapport d'Évaluation Golden Set

@@ -1,20 +1,34 @@
 import time
 import uuid
 import json
+import re
+import logging
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from pydantic import BaseModel
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.deps import get_current_user
-from app.models.schemas import User, RdaQuery, Rule, DocumentChunk, Document, Conversation, ConversationMessage
+from app.models.schemas import User, RdaQuery, DocumentChunk, Document, Conversation, ConversationMessage
 from app.schemas.assistant import AssistantQueryRequest, AssistantQueryResponse, CitationItem, TranslationRequest, TranslationResponse
 from app.services.retrieval import hybrid_search
-from app.services.generation import generate_answer, translate_messages
+from app.services.generation import (
+    generate_answer, 
+    translate_messages,
+    prepare_rag_prompt_and_citations,
+    finalize_citations_and_evidence,
+    _generate_with_ollama_stream
+)
+from app.services.concurrency import concurrency_limiter, user_rate_limiter
 from app.services.audit import log_audit_event
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from app.security import get_effective_search_scope
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/assistant", tags=["Assistant"])
 
@@ -35,11 +49,13 @@ class MessageResponse(BaseModel):
     citations: Optional[List[Dict[str, Any]]] = None
     confidence: Optional[str] = None
 
+
 @router.get("/conversations", response_model=List[ConversationResponse])
 def get_conversations(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Retrieve all conversations for the current user."""
     convs = db.query(Conversation).filter(Conversation.user_id == current_user.id).order_by(Conversation.updated_at.desc()).all()
     return [{"id": c.id, "title": c.title or "Nouvelle conversation", "created_at": c.created_at.isoformat()} for c in convs]
+
 
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
 def get_conversation_messages(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
@@ -68,6 +84,7 @@ def get_conversation_messages(conversation_id: int, current_user=Depends(get_cur
         })
     return result
 
+
 @router.delete("/conversations/{conversation_id}")
 def delete_conversation(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete a conversation."""
@@ -78,128 +95,119 @@ def delete_conversation(conversation_id: int, current_user=Depends(get_current_u
     db.commit()
     return {"status": "deleted"}
 
+
+def _extract_document_hint(query: str) -> Optional[str]:
+    match = re.search(r"(?i)document\s+([a-zA-Z0-9_\-\.]+\.(?:pdf|docx))", query)
+    if not match:
+        match = re.search(r"(?i)selon le document\s+([a-zA-Z0-9_\-\.]+)", query)
+    return match.group(1).strip() if match else None
+
+
 @router.post("/query", response_model=AssistantQueryResponse, status_code=status.HTTP_200_OK)
 def assistant_query(
     payload: AssistantQueryRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    RAG Endpoint: Retrieves relevant context using hybrid_search,
-    then generates a natural language answer using a local LLM via Ollama.
+    RAG Endpoint standard (Synchrone) restructuré en 3 temps :
+    1. Lecture/écriture DB initiale (périmètre d'accès, recherche hybride, historique) puis db.commit()/fermeture.
+    2. Appel LLM 100% hors connexion DB avec régulation de concurrence (concurrency_limiter.slot()).
+    3. Réouverture d'une session DB courte pour enregistrer la télémétrie, la réponse et les citations.
     """
+    # 0. Limitation de débit par utilisateur
+    user_rate_limiter.check(current_user.id)
+    
     request_id = str(uuid.uuid4())
     start_time = time.perf_counter()
 
-    # 1. Retrieve chunks with user's authorized security groups and department
-    from app.security import get_effective_search_scope
-    scope_department, user_security_groups = get_effective_search_scope(current_user)
-    
-    search_department = payload.department
-    if scope_department:
-        search_department = scope_department
-        
-    # Heuristique simple (PoC, pas un vrai NER) pour extraire un nom de document
-    import re
-    document_title_hint = None
-    match = re.search(r"(?i)document\s+([a-zA-Z0-9_\-\.]+\.(?:pdf|docx))", payload.query)
-    if not match:
-        match = re.search(r"(?i)selon le document\s+([a-zA-Z0-9_\-\.]+)", payload.query)
-    
-    if match:
-        document_title_hint = match.group(1).strip()
+    # --- TEMPS 1 : Session DB courte pour recherche et initialisation ---
+    with SessionLocal() as db:
+        scope_department, user_security_groups = get_effective_search_scope(current_user)
+        search_department = scope_department or payload.department
+        document_title_hint = _extract_document_hint(payload.query)
 
-    search_results = hybrid_search(
-        db=db,
-        query=payload.query,
-        top_k=10,
-        department=search_department,
-        category=payload.category,
-        security_groups=user_security_groups,
-        document_title_hint=document_title_hint
-    )
+        search_results = hybrid_search(
+            db=db,
+            query=payload.query,
+            top_k=10,
+            department=search_department,
+            category=payload.category,
+            security_groups=user_security_groups,
+            document_title_hint=document_title_hint
+        )
 
-    # 2. Generate answer
-    gen_result = generate_answer(
-        query=payload.query, 
-        search_results=search_results,
-        language=payload.language
-    )
+        conv_id = payload.conversation_id
+        if not conv_id:
+            title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
+            conv = Conversation(user_id=current_user.id, title=title)
+            db.add(conv)
+            db.commit()
+            db.refresh(conv)
+            conv_id = conv.id
+        else:
+            conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
+            if not conv:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+
+        user_msg = ConversationMessage(
+            conversation_id=conv_id,
+            role="user",
+            content=payload.query
+        )
+        db.add(user_msg)
+        if not conv.title:
+            conv.title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
+        db.commit()
+
+    # --- TEMPS 2 : Appel LLM SANS AUCUNE CONNEXION DB OUVERTE ---
+    with concurrency_limiter.slot():
+        gen_result = generate_answer(
+            query=payload.query, 
+            search_results=search_results,
+            language=payload.language
+        )
     duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-    # Build citations list
     citations = [CitationItem(**c) for c in gen_result.get("citations", [])]
-    
     provider = gen_result.get("provider")
 
-    # 3. Save telemetry in RdaQuery
-    from app.config import settings
-    rda_query = RdaQuery(
-        request_id=request_id,
-        user_id=current_user.id,
-        query_text=payload.query,
-        results_count=len(search_results),
-        duration_ms=duration_ms,
-        confidence=gen_result.get("confidence"),
-        model_name=provider if provider else settings.OLLAMA_MODEL,
-        citation_count=len(citations),
-        abstained=(gen_result.get("confidence") == "insufficient")
-    )
-    db.add(rda_query)
-    
-    # 5. Handle conversation saving
-    conv_id = payload.conversation_id
-    if not conv_id:
-        title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
-        conv = Conversation(user_id=current_user.id, title=title)
-        db.add(conv)
-        db.commit()
-        db.refresh(conv)
-        conv_id = conv.id
-    else:
-        # Verify conversation belongs to user
-        conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
-        if not conv:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-            
-    # Add user message
-    user_msg = ConversationMessage(
-        conversation_id=conv_id,
-        role="user",
-        content=payload.query
-    )
-    db.add(user_msg)
-    
-    # Update conversation title if this is the first message
-    if not conv.title:
-        title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
-        conv.title = title
-    
-    # Save assistant message
-    asst_msg = ConversationMessage(
-        conversation_id=conv_id,
-        role="assistant",
-        content=gen_result.get("answer", ""),
-        confidence=gen_result.get("confidence"),
-        citations=json.dumps([c.model_dump() for c in citations]) if citations else None
-    )
-    db.add(asst_msg)
-    
-    # Update conversation timestamp
-    db.query(Conversation).filter(Conversation.id == conv_id).update({"updated_at": func.now()})
-    db.commit()
+    # --- TEMPS 3 : Réouverture d'une session courte pour enregistrer la réponse ---
+    with SessionLocal() as db_write:
+        rda_query = RdaQuery(
+            request_id=request_id,
+            user_id=current_user.id,
+            query_text=payload.query,
+            results_count=len(search_results),
+            duration_ms=duration_ms,
+            confidence=gen_result.get("confidence"),
+            model_name=provider if provider else settings.OLLAMA_MODEL,
+            citation_count=len(citations),
+            abstained=(gen_result.get("confidence") == "insufficient")
+        )
+        db_write.add(rda_query)
 
-    log_audit_event(
-        db=db,
-        actor_user_id=current_user.id,
-        action="assistant_query",
-        entity_type="rda_query",
-        entity_id=request_id,
-        details={
-            "confidence": gen_result.get("confidence"),
-            "results_count": len(search_results)
-        }
-    )
+        asst_msg = ConversationMessage(
+            conversation_id=conv_id,
+            role="assistant",
+            content=gen_result.get("answer", ""),
+            confidence=gen_result.get("confidence"),
+            citations=json.dumps([c.model_dump() for c in citations]) if citations else None
+        )
+        db_write.add(asst_msg)
+        db_write.query(Conversation).filter(Conversation.id == conv_id).update({"updated_at": func.now()})
+        db_write.commit()
+
+        log_audit_event(
+            db=db_write,
+            actor_user_id=current_user.id,
+            action="assistant_query",
+            entity_type="rda_query",
+            entity_id=request_id,
+            details={
+                "confidence": gen_result.get("confidence"),
+                "results_count": len(search_results)
+            }
+        )
 
     return AssistantQueryResponse(
         request_id=request_id,
@@ -212,14 +220,158 @@ def assistant_query(
         provider=gen_result.get("provider")
     )
 
+
+@router.post("/query/stream")
+def assistant_query_stream(
+    payload: AssistantQueryRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    RAG Endpoint Streaming (Server-Sent Events) :
+    Émet 3 types d'évènements SSE :
+    - 'sources' : citations et phrases de preuves dès la fin de la recherche documentaire.
+    - 'token'   : tokens émis au fil de la génération Ollama locale.
+    - 'done'    : métadonnées finales (id message, réponse complète, citations définitives).
+    Aucune connexion DB n'est maintenue pendant la génération LLM.
+    """
+    user_rate_limiter.check(current_user.id)
+    request_id = str(uuid.uuid4())
+    start_time = time.perf_counter()
+
+    # --- TEMPS 1 : Recherche et persistance du message utilisateur en base ---
+    with SessionLocal() as db:
+        scope_department, user_security_groups = get_effective_search_scope(current_user)
+        search_department = scope_department or payload.department
+        document_title_hint = _extract_document_hint(payload.query)
+
+        search_results = hybrid_search(
+            db=db,
+            query=payload.query,
+            top_k=10,
+            department=search_department,
+            category=payload.category,
+            security_groups=user_security_groups,
+            document_title_hint=document_title_hint
+        )
+
+        conv_id = payload.conversation_id
+        if not conv_id:
+            title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
+            conv = Conversation(user_id=current_user.id, title=title)
+            db.add(conv)
+            db.commit()
+            db.refresh(conv)
+            conv_id = conv.id
+        else:
+            conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
+            if not conv:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+
+        user_msg = ConversationMessage(
+            conversation_id=conv_id,
+            role="user",
+            content=payload.query
+        )
+        db.add(user_msg)
+        if not conv.title:
+            conv.title = payload.query[:50] + "..." if len(payload.query) > 50 else payload.query
+        db.commit()
+
+        # Préparation du prompt et des citations initiales
+        rag_prep = prepare_rag_prompt_and_citations(payload.query, search_results, payload.language)
+
+    # Convert initial candidate citations to clean JSON serializable
+    initial_sources_payload = []
+    for cit in rag_prep.get("citations", []):
+        cit_copy = {k: v for k, v in cit.items() if k not in ["content", "segments", "llm_index"]}
+        initial_sources_payload.append(cit_copy)
+
+    def event_stream():
+        full_answer = ""
+        # 1. Émettre l'évènement "sources" dès que la recherche est terminée
+        yield f"event: sources\ndata: {json.dumps({'sources': initial_sources_payload, 'confidence': rag_prep['confidence'], 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+
+        # 2. Cas d'abstention immédiate
+        if rag_prep.get("is_abstain", False):
+            abstain_text = rag_prep.get("answer", "")
+            yield f"event: token\ndata: {json.dumps({'token': abstain_text}, ensure_ascii=False)}\n\n"
+            full_answer = abstain_text
+            final_citations = []
+        else:
+            # 3. Génération en streaming avec contrôle de concurrence (SANS connexion DB)
+            try:
+                with concurrency_limiter.slot():
+                    for token in _generate_with_ollama_stream(rag_prep["system_prompt"], rag_prep["user_message"]):
+                        full_answer += token
+                        yield f"event: token\ndata: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.error(f"Erreur durant le streaming Ollama : {e}")
+                err_detail = "Le serveur est très sollicité, réessayez dans un instant" if "503" in str(e) else "Erreur de génération locale"
+                yield f"event: error\ndata: {json.dumps({'detail': err_detail}, ensure_ascii=False)}\n\n"
+                return
+
+            final_citations = finalize_citations_and_evidence(full_answer, rag_prep["all_citations"], payload.query)
+
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
+
+        # 4. TEMPS 3 : Réouverture de session courte pour sauvegarder la réponse et la télémétrie
+        message_id = None
+        try:
+            with SessionLocal() as db_write:
+                asst_msg = ConversationMessage(
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content=full_answer,
+                    confidence=rag_prep["confidence"] if final_citations else "insufficient",
+                    citations=json.dumps(final_citations, ensure_ascii=False) if final_citations else None
+                )
+                db_write.add(asst_msg)
+                db_write.commit()
+                db_write.refresh(asst_msg)
+                message_id = asst_msg.id
+
+                rda_query = RdaQuery(
+                    request_id=request_id,
+                    user_id=current_user.id,
+                    query_text=payload.query,
+                    results_count=len(search_results),
+                    duration_ms=duration_ms,
+                    confidence=rag_prep["confidence"] if final_citations else "insufficient",
+                    model_name="ollama",
+                    citation_count=len(final_citations),
+                    abstained=(not bool(final_citations))
+                )
+                db_write.add(rda_query)
+                db_write.query(Conversation).filter(Conversation.id == conv_id).update({"updated_at": func.now()})
+                db_write.commit()
+        except Exception as e:
+            logger.error(f"Erreur lors de l'enregistrement de la réponse streamée : {e}")
+
+        # 5. Émettre l'évènement final "done"
+        done_payload = {
+            "message_id": message_id,
+            "conversation_id": conv_id,
+            "answer": full_answer,
+            "citations": final_citations,
+            "confidence": rag_prep["confidence"] if final_citations else "insufficient",
+            "duration_ms": duration_ms
+        }
+        yield f"event: done\ndata: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @router.post("/translate", response_model=TranslationResponse)
 def translate_conversation(payload: TranslationRequest, current_user = Depends(get_current_user)):
-    """
-    Translates a list of messages to the target language.
-    """
-    # Convert payload messages to list of dicts
+    """Translates a list of messages to the target language."""
     messages = [{"role": msg.role, "content": msg.content} for msg in payload.messages]
-    
     translated = translate_messages(messages, payload.target_language)
-    
     return TranslationResponse(translated_messages=translated)

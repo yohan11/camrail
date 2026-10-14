@@ -1,0 +1,102 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Base de données PostgreSQL avec extension pgvector
+  # ----------------------------------------------------------------------------
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: railmind-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: railmind
+      POSTGRES_USER: railmind
+      POSTGRES_PASSWORD: railmind123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U railmind -d railmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 2. Backend FastAPI (RAG souverain, multi-workers, 100% hors-ligne)
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+    container_name: railmind-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Surcharge de la connexion DB pour cibler le conteneur db
+      - DATABASE_URL=postgresql://railmind:railmind123@db:5432/railmind
+      # Adresse du service Ollama si hébergé dans Docker Compose
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Persistance des modèles d'embedding et poids hors-ligne
+      - ./backend/models:/app/models
+      # Persistance des fichiers et documents téléversés
+      - ./backend/storage:/app/storage
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 3. Frontend Next.js (Interface utilisateur & streaming des réponses)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend/camrail-rda
+      args:
+        # NOTE : NEXT_PUBLIC_API_URL est figé au build.
+        # En production derrière un nom de domaine ou une IP serveur, modifier cette valeur
+        # puis reconstruire avec : docker compose build frontend
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: railmind-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  # ----------------------------------------------------------------------------
+  # 4. Service Ollama (Optionnel via profil compose : docker compose --profile ollama up -d)
+  # Si Ollama tourne déjà sur l'hôte natif (recommandé sous Windows/Mac), ce service n'est pas requis.
+  # ----------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: railmind-ollama
+    restart: unless-stopped
+    profiles:
+      - ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # --------------------------------------------------------------------------
+    # Décommenter ci-dessous pour activer l'accélération matérielle NVIDIA GPU :
+    # (Nécessite nvidia-container-toolkit installé sur l'hôte Linux)
+    # --------------------------------------------------------------------------
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  postgres_data:
+    name: railmind_postgres_data
+  ollama_data:
+    name: railmind_ollama_data

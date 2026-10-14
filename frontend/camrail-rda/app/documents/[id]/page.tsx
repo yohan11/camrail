@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken, getSession } from "@/lib/auth";
@@ -128,6 +131,15 @@ export default function DocumentViewerPage() {
     return () => clearTimeout(timer);
   }, [document, evidenceItems]);
 
+  // Keep sidebar page centered on current active page
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const activeBtn = window.document.getElementById(`sidebar-page-${currentPage}`);
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [currentPage]);
+
   const activeEvidence = evidenceItems.length > 0 ? evidenceItems[0] : null;
   const isPdf = document?.file_type === "pdf";
 
@@ -168,8 +180,9 @@ export default function DocumentViewerPage() {
       <div>
         {/* Loading */}
         {loading && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-            <p className="text-sm text-slate-500">Chargement du document...</p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-xs">
+            <div className="h-8 w-8 mx-auto rounded-full border-2 border-camrail-red border-t-transparent animate-spin mb-3"></div>
+            <p className="text-sm font-medium text-slate-500">Chargement du document...</p>
           </div>
         )}
 
@@ -180,7 +193,7 @@ export default function DocumentViewerPage() {
             <p className="mt-2 text-xs text-red-600">{error}</p>
             <Link
               href="/documents"
-              className="mt-4 inline-flex rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+              className="mt-4 inline-flex rounded-xl bg-camrail-red px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition"
             >
               Retour aux documents
             </Link>
@@ -194,43 +207,43 @@ export default function DocumentViewerPage() {
             <div className="mb-6">
               <Link
                 href="/documents"
-                className="text-sm font-semibold text-red-600 transition hover:text-red-700"
+                className="text-sm font-semibold text-camrail-red transition hover:text-red-700 flex items-center gap-1.5"
               >
-                ← Retour aux documents
+                <span>←</span> Retour aux documents
               </Link>
 
               <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Document #{document.id}
                   </p>
-                  <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+                  <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
                     {document.title}
                   </h1>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Version {document.version} • {document.pages.length} pages • {document.department}
+                  <p className="mt-1 text-sm text-slate-600 font-medium">
+                    Version {document.version} • {document.pages.length} {document.pages.length > 1 ? "pages" : "page"} • {document.department}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Bandeau fixe en haut du visualiseur si preuve IA présente */}
+            {/* Fixed Evidence Banner if evidence available */}
             {activeEvidence && (
-              <div className="sticky top-2 z-20 mb-4 rounded-xl border border-amber-300 bg-amber-50/95 p-3.5 shadow-md backdrop-blur-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="sticky top-2 z-20 mb-4 rounded-xl border border-amber-300 bg-amber-50/95 p-4 shadow-md backdrop-blur-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-200 text-amber-900 shadow-sm">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold bg-amber-200 text-amber-900 shadow-xs">
                       Passage utilisé par l&apos;IA — Page {activeEvidence.page_number}
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs text-amber-950 font-mono italic leading-relaxed bg-white/80 p-2 rounded border border-amber-200/60 select-text">
+                  <p className="mt-2 text-sm text-amber-950 font-sans italic leading-relaxed bg-white/85 p-3 rounded-lg border border-amber-200/70 select-text">
                     &ldquo;{activeEvidence.text}&rdquo;
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={goToEvidence}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow transition-colors"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-600 cursor-pointer"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                   Aller au passage
@@ -242,8 +255,8 @@ export default function DocumentViewerPage() {
             <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
               {/* Page navigation sidebar */}
               <aside className="hidden lg:block">
-                <div className="sticky top-5 rounded-2xl border border-slate-200 bg-white p-3 max-h-[80vh] overflow-y-auto">
-                  <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <div className="sticky top-5 rounded-2xl border border-slate-200 bg-white p-3 max-h-[80vh] overflow-y-auto shadow-xs">
+                  <p className="px-2 pb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
                     Pages ({document.pages.length})
                   </p>
 
@@ -253,12 +266,13 @@ export default function DocumentViewerPage() {
                       return (
                         <button
                           key={page.id}
+                          id={`sidebar-page-${page.page_number}`}
                           type="button"
                           onClick={() => handlePageClick(page.page_number)}
-                          className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left ${
+                          className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition text-left cursor-pointer ${
                             isActive
-                              ? "bg-red-50 text-camrail-red font-semibold"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-red-600"
+                              ? "bg-red-50 text-camrail-red font-semibold border-l-[3px] border-camrail-red pl-2.5 shadow-xs"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-camrail-red border-l-[3px] border-transparent pl-2.5"
                           }`}
                         >
                           <span>Page {page.page_number}</span>
@@ -271,13 +285,16 @@ export default function DocumentViewerPage() {
 
               {/* Document File Viewer */}
               <section
-                className="rounded-2xl border border-slate-200 bg-slate-100 p-3 sm:p-5 h-[800px] flex flex-col relative"
+                className="rounded-2xl border border-slate-200 bg-slate-100 p-3 sm:p-5 h-[800px] flex flex-col relative overflow-hidden"
                 onContextMenu={(e) => e.preventDefault()}
               >
-                {/* Filigrane de sécurité anti-capture */}
-                <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center opacity-5 overflow-hidden">
-                  <div className="transform -rotate-45 text-4xl font-black text-black tracking-widest whitespace-pre">
-                    CONFIDENTIEL CAMRAIL CONFIDENTIEL CAMRAIL CONFIDENTIEL CAMRAIL
+                {/* Filigrane de sécurité anti-capture discret (fond strict, opacité <= 0.05, jamais au-dessus du texte) */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 pointer-events-none -z-10 select-none flex items-center justify-center opacity-[0.03] overflow-hidden"
+                >
+                  <div className="transform -rotate-45 text-2xl sm:text-3xl font-black text-slate-900 tracking-[0.25em] whitespace-nowrap">
+                    CAMRAIL CONFIDENTIEL • USAGE INTERNE
                   </div>
                 </div>
 
@@ -292,7 +309,7 @@ export default function DocumentViewerPage() {
                     />
                   ) : fileUrl ? (
                     /* DOCX / Text Page-by-page Mode */
-                    <div className="p-6 sm:p-10 overflow-y-auto h-full text-slate-700 bg-white">
+                    <div className="p-6 sm:p-10 overflow-y-auto h-full text-slate-800 bg-white">
                       <div className="max-w-3xl mx-auto space-y-12">
                         {document.pages.map((page) => {
                           const text = page.extracted_text || "Aucun texte extrait pour cette page.";
@@ -302,7 +319,7 @@ export default function DocumentViewerPage() {
                             (e) => e.page_number === page.page_number
                           );
 
-                          let renderedContent: React.ReactNode = text;
+                          let processedText = text;
                           let evidenceNotFoundNotice = false;
 
                           if (matchingEvidences.length > 0) {
@@ -314,18 +331,7 @@ export default function DocumentViewerPage() {
                               const target = text.slice(match.start, match.end);
                               const after = text.slice(match.end);
 
-                              renderedContent = (
-                                <>
-                                  {before}
-                                  <mark
-                                    id="evidence-0"
-                                    className="bg-amber-200 text-slate-900 px-1 py-0.5 rounded shadow font-semibold transition-all duration-500 ring-2 ring-amber-400"
-                                  >
-                                    {target}
-                                  </mark>
-                                  {after}
-                                </>
-                              );
+                              processedText = `${before}<mark id="evidence-0" class="bg-amber-200 text-slate-900 px-1 py-0.5 rounded shadow-xs font-semibold ring-2 ring-amber-400">${target}</mark>${after}`;
                             } else {
                               evidenceNotFoundNotice = true;
                             }
@@ -338,7 +344,7 @@ export default function DocumentViewerPage() {
                               className="scroll-mt-16 border-b border-slate-100 pb-8 last:border-b-0"
                             >
                               <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-2">
-                                <h3 className="text-lg font-bold text-slate-800">
+                                <h3 className="text-base font-bold text-slate-900">
                                   Page {page.page_number}
                                 </h3>
                                 {matchingEvidences.length > 0 && (
@@ -348,12 +354,56 @@ export default function DocumentViewerPage() {
                                 )}
                               </div>
 
-                              <div className="prose prose-slate prose-sm max-w-none whitespace-pre-wrap font-mono text-xs text-slate-600 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                {renderedContent}
+                              <div className="font-sans text-base leading-[1.7] text-slate-800 bg-white p-6 rounded-xl border border-slate-200 max-w-[70ch] shadow-xs">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  rehypePlugins={[rehypeRaw]}
+                                  components={{
+                                    table: ({ children }) => (
+                                      <div className="overflow-x-auto my-4 rounded-lg border border-slate-200 shadow-xs">
+                                        <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                                          {children}
+                                        </table>
+                                      </div>
+                                    ),
+                                    thead: ({ children }) => (
+                                      <thead className="bg-slate-100 font-semibold text-slate-800">
+                                        {children}
+                                      </thead>
+                                    ),
+                                    tbody: ({ children }) => (
+                                      <tbody className="divide-y divide-slate-100 bg-white">
+                                        {children}
+                                      </tbody>
+                                    ),
+                                    tr: ({ children, ...props }) => (
+                                      <tr className="even:bg-slate-50/60 hover:bg-slate-50 transition-colors" {...props}>
+                                        {children}
+                                      </tr>
+                                    ),
+                                    th: ({ children }) => (
+                                      <th className="px-4 py-2.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                        {children}
+                                      </th>
+                                    ),
+                                    td: ({ children }) => (
+                                      <td className="px-4 py-2.5 text-sm text-slate-800 whitespace-normal">
+                                        {children}
+                                      </td>
+                                    ),
+                                    p: ({ children }) => (
+                                      <p className="mb-3 text-base leading-[1.7] text-slate-800 last:mb-0">
+                                        {children}
+                                      </p>
+                                    ),
+                                  }}
+                                >
+                                  {processedText}
+                                </ReactMarkdown>
                               </div>
 
                               {evidenceNotFoundNotice && (
-                                <p className="mt-2 text-xs text-slate-400 italic">
+                                <p className="mt-2 text-xs text-slate-500 italic">
                                   Note : La phrase de preuve se situe sur cette page mais n&apos;a pas pu être surlignée mot à mot.
                                 </p>
                               )}
@@ -365,11 +415,11 @@ export default function DocumentViewerPage() {
                   ) : (
                     <div className="flex items-center justify-center w-full h-full text-slate-400 flex-col gap-3">
                       {loading ? (
-                        <p>Chargement du document...</p>
+                        <p className="text-sm">Chargement du document...</p>
                       ) : (
-                        <div>
-                          <p>Impossible d&apos;afficher le document original.</p>
-                          {fileError && <p className="text-xs text-red-500 mt-2">Détail : {fileError}</p>}
+                        <div className="text-center p-6">
+                          <p className="text-sm font-medium text-slate-600">Impossible d&apos;afficher le document original.</p>
+                          {fileError && <p className="text-xs text-red-500 mt-2 font-medium">Détail : {fileError}</p>}
                         </div>
                       )}
                     </div>

@@ -1,0 +1,669 @@
+{
+    "embedding_model": "intfloat/multilingual-e5-small",
+    "total_queries": 28,
+    "total_in_domain": 22,
+    "total_out_domain": 6,
+    "recommended_threshold": 0.19,
+    "recommended_stats": {
+        "threshold": 0.19,
+        "tp": 5,
+        "fp": 2,
+        "fn": 1,
+        "tn": 20,
+        "abstention_precision": 0.7143,
+        "abstention_recall": 0.8333,
+        "abstention_f1": 0.7692,
+        "in_domain_retention": 0.9091
+    },
+    "sweep": [
+        {
+            "threshold": 0.1,
+            "tp": 6,
+            "fp": 22,
+            "fn": 0,
+            "tn": 0,
+            "abstention_precision": 0.2143,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.3529,
+            "in_domain_retention": 0.0
+        },
+        {
+            "threshold": 0.11,
+            "tp": 6,
+            "fp": 22,
+            "fn": 0,
+            "tn": 0,
+            "abstention_precision": 0.2143,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.3529,
+            "in_domain_retention": 0.0
+        },
+        {
+            "threshold": 0.12,
+            "tp": 6,
+            "fp": 22,
+            "fn": 0,
+            "tn": 0,
+            "abstention_precision": 0.2143,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.3529,
+            "in_domain_retention": 0.0
+        },
+        {
+            "threshold": 0.13,
+            "tp": 6,
+            "fp": 20,
+            "fn": 0,
+            "tn": 2,
+            "abstention_precision": 0.2308,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.375,
+            "in_domain_retention": 0.0909
+        },
+        {
+            "threshold": 0.14,
+            "tp": 6,
+            "fp": 19,
+            "fn": 0,
+            "tn": 3,
+            "abstention_precision": 0.24,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.3871,
+            "in_domain_retention": 0.1364
+        },
+        {
+            "threshold": 0.15,
+            "tp": 6,
+            "fp": 18,
+            "fn": 0,
+            "tn": 4,
+            "abstention_precision": 0.25,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.4,
+            "in_domain_retention": 0.1818
+        },
+        {
+            "threshold": 0.16,
+            "tp": 6,
+            "fp": 13,
+            "fn": 0,
+            "tn": 9,
+            "abstention_precision": 0.3158,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.48,
+            "in_domain_retention": 0.4091
+        },
+        {
+            "threshold": 0.17,
+            "tp": 6,
+            "fp": 12,
+            "fn": 0,
+            "tn": 10,
+            "abstention_precision": 0.3333,
+            "abstention_recall": 1.0,
+            "abstention_f1": 0.5,
+            "in_domain_retention": 0.4545
+        },
+        {
+            "threshold": 0.18,
+            "tp": 5,
+            "fp": 8,
+            "fn": 1,
+            "tn": 14,
+            "abstention_precision": 0.3846,
+            "abstention_recall": 0.8333,
+            "abstention_f1": 0.5263,
+            "in_domain_retention": 0.6364
+        },
+        {
+            "threshold": 0.19,
+            "tp": 5,
+            "fp": 2,
+            "fn": 1,
+            "tn": 20,
+            "abstention_precision": 0.7143,
+            "abstention_recall": 0.8333,
+            "abstention_f1": 0.7692,
+            "in_domain_retention": 0.9091
+        },
+        {
+            "threshold": 0.2,
+            "tp": 4,
+            "fp": 1,
+            "fn": 2,
+            "tn": 21,
+            "abstention_precision": 0.8,
+            "abstention_recall": 0.6667,
+            "abstention_f1": 0.7273,
+            "in_domain_retention": 0.9545
+        },
+        {
+            "threshold": 0.21,
+            "tp": 4,
+            "fp": 1,
+            "fn": 2,
+            "tn": 21,
+            "abstention_precision": 0.8,
+            "abstention_recall": 0.6667,
+            "abstention_f1": 0.7273,
+            "in_domain_retention": 0.9545
+        },
+        {
+            "threshold": 0.22,
+            "tp": 3,
+            "fp": 1,
+            "fn": 3,
+            "tn": 21,
+            "abstention_precision": 0.75,
+            "abstention_recall": 0.5,
+            "abstention_f1": 0.6,
+            "in_domain_retention": 0.9545
+        },
+        {
+            "threshold": 0.23,
+            "tp": 2,
+            "fp": 0,
+            "fn": 4,
+            "tn": 22,
+            "abstention_precision": 1.0,
+            "abstention_recall": 0.3333,
+            "abstention_f1": 0.5,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.24,
+            "tp": 2,
+            "fp": 0,
+            "fn": 4,
+            "tn": 22,
+            "abstention_precision": 1.0,
+            "abstention_recall": 0.3333,
+            "abstention_f1": 0.5,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.25,
+            "tp": 1,
+            "fp": 0,
+            "fn": 5,
+            "tn": 22,
+            "abstention_precision": 1.0,
+            "abstention_recall": 0.1667,
+            "abstention_f1": 0.2857,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.26,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.27,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.28,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.29,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.3,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.31,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.32,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.33,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.34,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.35,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.36,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.37,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.38,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.39,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.4,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.41,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.42,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.43,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.44,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.45,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.46,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.47,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.48,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.49,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        },
+        {
+            "threshold": 0.5,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 22,
+            "abstention_precision": 0.0,
+            "abstention_recall": 0.0,
+            "abstention_f1": 0.0,
+            "in_domain_retention": 1.0
+        }
+    ],
+    "queries_detail": [
+        {
+            "index": 1,
+            "question": "Où sont apparues les premières voies ferrées ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.14994405806397892,
+            "top_result_title": "01 histoire chemin de fer"
+        },
+        {
+            "index": 2,
+            "question": "Quel siècle a vu naître le chemin de fer comme moyen de transport ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.18235938654187855,
+            "top_result_title": "01 histoire chemin de fer"
+        },
+        {
+            "index": 3,
+            "question": "De quoi est composée une voie ferrée classique ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.1524941325187683,
+            "top_result_title": "02 infrastructure voie ferree"
+        },
+        {
+            "index": 4,
+            "question": "Quels éléments assurent la stabilité des trains sur les rails ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.18124942891302986,
+            "top_result_title": "RailMind Test 01 Operations FR"
+        },
+        {
+            "index": 5,
+            "question": "Quel est le rôle premier de la signalisation ferroviaire ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.13857679733176098,
+            "top_result_title": "03 signalisation ferroviaire"
+        },
+        {
+            "index": 6,
+            "question": "Comment éviter les collisions entre trains ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.17729869294785838,
+            "top_result_title": "04 trains grande vitesse"
+        },
+        {
+            "index": 7,
+            "question": "À partir de quelle vitesse un train est-il qualifié de grande vitesse sur une ligne nouvelle ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.12417924404144287,
+            "top_result_title": "04 trains grande vitesse"
+        },
+        {
+            "index": 8,
+            "question": "Quel est le seuil de vitesse pour les TGV ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.15927890417810953,
+            "top_result_title": "04 trains grande vitesse"
+        },
+        {
+            "index": 9,
+            "question": "Quel organisme est chargé de délivrer les autorisations de circulation en France ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.1879072655356433,
+            "top_result_title": "05 securite ferroviaire reglementation"
+        },
+        {
+            "index": 10,
+            "question": "Qui donne le feu vert pour faire circuler un train en France ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.19129961729049683,
+            "top_result_title": "05 securite ferroviaire reglementation"
+        },
+        {
+            "index": 11,
+            "question": "En quoi consiste la maintenance préventive ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.16179452397888616,
+            "top_result_title": "RailMind Test 03 Maintenance FR"
+        },
+        {
+            "index": 12,
+            "question": "Que faut-il faire pour éviter qu'une panne ne survienne sur le matériel ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.1884987241924555,
+            "top_result_title": "RailMind Test 03 Maintenance FR"
+        },
+        {
+            "index": 13,
+            "question": "De quoi dépend la sécurité ferroviaire générale ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.1515129804611206,
+            "top_result_title": "RailMind Test 02 Securite FR"
+        },
+        {
+            "index": 14,
+            "question": "Quels sont les facteurs de fiabilité dans le transport par rail ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.18517910330419973,
+            "top_result_title": "RailMind Test 02 Securite FR"
+        },
+        {
+            "index": 15,
+            "question": "En quoi consiste la gestion de la circulation des trains ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.15379815377007844,
+            "top_result_title": "RailMind Test 01 Operations FR"
+        },
+        {
+            "index": 16,
+            "question": "Comment réguler le trafic pour optimiser le réseau ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.1716318624239035,
+            "top_result_title": "RailMind Test 01 Operations FR"
+        },
+        {
+            "index": 17,
+            "question": "Comparaison: Quelle est la différence entre la maintenance préventive et curative ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.18068962212266648,
+            "top_result_title": "RailMind Test 03 Maintenance FR"
+        },
+        {
+            "index": 18,
+            "question": "Selon le tableau des incidents, quel mois a connu le plus de retards ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.22175050779426653,
+            "top_result_title": "test_rh_procedure.pdf"
+        },
+        {
+            "index": 19,
+            "question": "Comment les normes EPSF impactent-elles la maintenance préventive ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.17931931142095714,
+            "top_result_title": "RailMind Test 03 Maintenance FR"
+        },
+        {
+            "index": 20,
+            "question": "Quelle est la capitale de l'Australie ?",
+            "is_out_domain": true,
+            "min_vector_distance": 0.25385300792139587,
+            "top_result_title": "Doc Safety"
+        },
+        {
+            "index": 21,
+            "question": "Comment faire un gâteau au chocolat ?",
+            "is_out_domain": true,
+            "min_vector_distance": 0.19208841371009122,
+            "top_result_title": "Formation Java Chap 2 4"
+        },
+        {
+            "index": 22,
+            "question": "Quel est le meilleur film de science-fiction ?",
+            "is_out_domain": true,
+            "min_vector_distance": 0.22402827596495756,
+            "top_result_title": "05 securite ferroviaire reglementation"
+        },
+        {
+            "index": 23,
+            "question": "Combien de pattes a une araignée ?",
+            "is_out_domain": true,
+            "min_vector_distance": 0.24229988547564918,
+            "top_result_title": "Formation Java Chap 2 4"
+        },
+        {
+            "index": 24,
+            "question": "Où se trouve la tour Eiffel ?",
+            "is_out_domain": true,
+            "min_vector_distance": 0.21824542066509478,
+            "top_result_title": "Doc Safety"
+        },
+        {
+            "index": 25,
+            "question": "Peux-tu me donner la recette de la tarte aux pommes ?",
+            "is_out_domain": true,
+            "min_vector_distance": 0.17933623913906438,
+            "top_result_title": "Manuel de Formation"
+        },
+        {
+            "index": 26,
+            "question": "À partir de quelle vitesse sur une ligne nouvelle un train est-il qualifié de grande vitesse ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.12124037742614746,
+            "top_result_title": "04 trains grande vitesse"
+        },
+        {
+            "index": 27,
+            "question": "Quel organisme est chargé de délivrer les autorisations de circulation ferroviaire en France ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.17456114292144775,
+            "top_result_title": "05 securite ferroviaire reglementation"
+        },
+        {
+            "index": 28,
+            "question": "De quels éléments est composée une voie ferrée classique ?",
+            "is_out_domain": false,
+            "min_vector_distance": 0.1557225492165938,
+            "top_result_title": "02 infrastructure voie ferree"
+        }
+    ]
+}

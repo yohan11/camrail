@@ -10,7 +10,46 @@ from sqlalchemy.orm import Session
 
 from app.models.schemas import Document, DocumentChunk
 from app.services.indexing import embed_text
+from app.config import settings
 
+_reranker = None
+
+def get_reranker():
+    global _reranker
+    if _reranker is None:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        from sentence_transformers import CrossEncoder
+        
+        models_dir = getattr(settings, "MODELS_DIR", "./models")
+        if not os.path.isabs(models_dir):
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            models_dir = os.path.abspath(os.path.join(base_dir, models_dir))
+            
+        model_name = getattr(settings, "RERANKER_MODEL", "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
+        model_basename = model_name.split("/")[-1]
+        
+        candidate_paths = [
+            os.path.join(models_dir, model_basename),
+            os.path.join(models_dir, model_name),
+            os.path.join(models_dir, model_name.replace("/", "_")),
+            models_dir
+        ]
+        
+        target_path = None
+        for p in candidate_paths:
+            if os.path.isdir(p) and (os.path.exists(os.path.join(p, "config.json")) or os.path.exists(os.path.join(p, "model.safetensors")) or os.path.exists(os.path.join(p, "pytorch_model.bin"))):
+                target_path = p
+                break
+                
+        if not target_path:
+            raise RuntimeError(
+                f"Modèle reranker '{model_name}' absent du dossier local '{models_dir}'. "
+                f"Veuillez exécuter 'python scripts/prepare_models.py --include-reranker' sur une machine connectée pour préparer les modèles hors-ligne."
+            )
+            
+        _reranker = CrossEncoder(target_path, local_files_only=True)
+    return _reranker
 
 def _sanitize_query_terms(query: str) -> list[str]:
     """
@@ -41,7 +80,16 @@ def hybrid_search(
         return []
 
     clean_query = query.strip()
-    query_emb = embed_text(clean_query)
+    
+    # Configuration dynamique de hnsw.ef_search pour l'index HNSW pgvector
+    ef_search = getattr(settings, "HNSW_EF_SEARCH", 64)
+    try:
+        from sqlalchemy import text
+        db.execute(text(f"SET hnsw.ef_search = {int(ef_search)};"))
+    except Exception:
+        pass
+
+    query_emb = embed_text(clean_query, kind="query")
 
     # 1. Base query filters: active documents only + optional metadata filters
     base_filter = [Document.status == "active"]
@@ -82,7 +130,7 @@ def hybrid_search(
         .filter(*base_filter)
         .filter(DocumentChunk.embedding.isnot(None))
         .order_by(distance_expr)
-        .limit(8)
+        .limit(15 if getattr(settings, "RERANKER_ENABLED", False) else 8)
         .all()
     )
 
@@ -99,7 +147,7 @@ def hybrid_search(
             .filter(*base_filter)
             .filter(DocumentChunk.search_vector.op("@@")(ts_query))
             .order_by(func.ts_rank(DocumentChunk.search_vector, ts_query).desc())
-            .limit(8)
+            .limit(15 if getattr(settings, "RERANKER_ENABLED", False) else 8)
             .all()
         )
 
@@ -120,21 +168,9 @@ def hybrid_search(
     q_emb_arr = np.array(query_emb)
     norm_q = float(np.linalg.norm(q_emb_arr))
 
-    import numpy as np
-    q_emb_arr = np.array(query_emb)
-    norm_q = float(np.linalg.norm(q_emb_arr))
-
     for rank, (chunk, doc) in enumerate(lexical_results, start=1):
         chunk_scores[chunk.id] = chunk_scores.get(chunk.id, 0.0) + (1.0 / (60.0 + rank))
         chunk_map[chunk.id] = (chunk, doc)
-        if chunk.id not in chunk_distances and chunk.embedding is not None:
-            c_emb_arr = np.array(chunk.embedding)
-            norm_c = float(np.linalg.norm(c_emb_arr))
-            if norm_c > 0 and norm_q > 0:
-                cos_sim = float(np.dot(c_emb_arr, q_emb_arr) / (norm_c * norm_q))
-                chunk_distances[chunk.id] = float(max(0.0, 1.0 - cos_sim))
-            else:
-                chunk_distances[chunk.id] = 1.0
         if chunk.id not in chunk_distances and chunk.embedding is not None:
             c_emb_arr = np.array(chunk.embedding)
             norm_c = float(np.linalg.norm(c_emb_arr))
@@ -147,8 +183,19 @@ def hybrid_search(
     if not chunk_scores:
         return []
 
-    # 5. Sort by fusion score descending and pick top_k
-    sorted_chunk_ids = sorted(chunk_scores.keys(), key=lambda cid: chunk_scores[cid], reverse=True)[:top_k]
+    # 5. Sort candidates and optionally rerank with CrossEncoder
+    candidate_ids = sorted(chunk_scores.keys(), key=lambda cid: chunk_scores[cid], reverse=True)
+    
+    if getattr(settings, "RERANKER_ENABLED", False) and candidate_ids:
+        rerank_candidates = candidate_ids[:15]
+        reranker = get_reranker()
+        pairs = [(clean_query, chunk_map[cid][0].content or "") for cid in rerank_candidates]
+        rerank_scores = reranker.predict(pairs)
+        # Sort by reranker cross-encoder score descending
+        sorted_pairs = sorted(zip(rerank_scores, rerank_candidates), key=lambda x: x[0], reverse=True)
+        sorted_chunk_ids = [cid for _, cid in sorted_pairs][:top_k]
+    else:
+        sorted_chunk_ids = candidate_ids[:top_k]
 
     # 6. Format response items
     formatted_results = []

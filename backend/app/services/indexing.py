@@ -10,25 +10,151 @@ from sentence_transformers import SentenceTransformer
 from app.models.schemas import Document, DocumentPage, DocumentChunk
 from app.config import settings
 
-# Initialize sentence-transformers model from local cache
-_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+from typing import Optional
 
-def embed_text(text: str) -> List[float]:
+# Lazy-loaded model instance
+_model: Optional[SentenceTransformer] = None
+
+def get_embedding_model() -> SentenceTransformer:
+    """
+    Charge le modèle SentenceTransformer localement depuis MODELS_DIR en mode 100% hors-ligne.
+    Valide les 384 dimensions d'embedding et configure max_seq_length à 512.
+    Lève une RuntimeError explicite si le modèle n'a pas été préparé dans MODELS_DIR.
+    """
+    global _model
+    if _model is None:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        
+        models_dir = getattr(settings, "MODELS_DIR", "./models")
+        if not os.path.isabs(models_dir):
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            models_dir = os.path.abspath(os.path.join(base_dir, models_dir))
+            
+        model_name = getattr(settings, "EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+        model_basename = model_name.split("/")[-1]
+        
+        candidate_paths = [
+            os.path.join(models_dir, model_basename),
+            os.path.join(models_dir, model_name),
+            os.path.join(models_dir, model_name.replace("/", "_")),
+            models_dir
+        ]
+        
+        target_path = None
+        for p in candidate_paths:
+            if os.path.isdir(p) and (os.path.exists(os.path.join(p, "config.json")) or os.path.exists(os.path.join(p, "modules.json"))):
+                target_path = p
+                break
+                
+        if not target_path:
+            raise RuntimeError(
+                f"Modèle d'embedding '{model_name}' absent du dossier local '{models_dir}'. "
+                f"Veuillez exécuter 'python scripts/prepare_models.py' sur une machine connectée pour préparer les modèles hors-ligne."
+            )
+            
+        model = SentenceTransformer(target_path, local_files_only=True)
+        dim = model.get_sentence_embedding_dimension()
+        expected_dim = getattr(settings, "EMBEDDING_DIM", 384)
+        assert dim == expected_dim, f"Dimension du modèle d'embedding invalide : attendu {expected_dim}, obtenu {dim}"
+        model.max_seq_length = 512
+        _model = model
+    return _model
+
+from collections import OrderedDict
+import threading
+import time
+
+_query_cache_lock = threading.Lock()
+_query_embedding_cache = OrderedDict()  # key -> (embedding_list, expire_time)
+
+def get_cached_query_embedding(query_text: str):
+    now = time.time()
+    with _query_cache_lock:
+        if query_text in _query_embedding_cache:
+            emb, expire_at = _query_embedding_cache[query_text]
+            if now < expire_at:
+                _query_embedding_cache.move_to_end(query_text)
+                return emb
+            else:
+                del _query_embedding_cache[query_text]
+    return None
+
+def set_cached_query_embedding(query_text: str, emb):
+    cache_size = getattr(settings, "QUERY_EMBEDDING_CACHE_SIZE", 1024)
+    ttl = getattr(settings, "QUERY_CACHE_TTL_SECONDS", 3600)
+    now = time.time()
+    with _query_cache_lock:
+        if len(_query_embedding_cache) >= cache_size:
+            _query_embedding_cache.popitem(last=False)
+        _query_embedding_cache[query_text] = (emb, now + ttl)
+
+def clear_query_embedding_cache():
+    with _query_cache_lock:
+        _query_embedding_cache.clear()
+
+def embed_text(text: str, kind: str = "passage") -> List[float]:
     """
     Computes dense 384-dimensional vector embedding for the given text.
+    kind must be 'passage' or 'query' (mandatory for e5).
     normalize_embeddings=True enables standard cosine distance comparisons.
+    Uses in-memory LRU cache with TTL for identical query embeddings (kind='query').
     """
+    if kind not in {"passage", "query"}:
+        raise ValueError(f"Paramètre kind invalide : '{kind}'. Attendu 'passage' ou 'query'.")
+
+    expected_dim = getattr(settings, "EMBEDDING_DIM", 384)
     if not text or not text.strip():
-        return [0.0] * 384
-    emb = _model.encode(text, normalize_embeddings=True)
+        return [0.0] * expected_dim
+
+    clean_text = text.strip()
+    if kind == "query":
+        cached = get_cached_query_embedding(clean_text)
+        if cached is not None:
+            return cached
+
+    model = get_embedding_model()
+    prefix = settings.EMBEDDING_QUERY_PREFIX if kind == "query" else settings.EMBEDDING_PASSAGE_PREFIX
+    prefixed_text = f"{prefix}{clean_text}"
+    emb = model.encode(prefixed_text, normalize_embeddings=True)
     import numpy as np
     if np.isnan(emb).any():
         emb = np.nan_to_num(emb, nan=0.0)
         norm = np.linalg.norm(emb)
         if norm > 0:
             emb = emb / norm
-    return emb.tolist()
+            
+    res_list = emb.tolist()
+    if kind == "query":
+        set_cached_query_embedding(clean_text, res_list)
+        
+    return res_list
 
+def embed_texts(texts: List[str], kind: str = "passage") -> List[List[float]]:
+    """
+    Computes dense 384-dimensional vector embeddings in batch for a list of texts.
+    kind must be 'passage' or 'query' (mandatory for e5).
+    """
+    if kind not in {"passage", "query"}:
+        raise ValueError(f"Paramètre kind invalide : '{kind}'. Attendu 'passage' ou 'query'.")
+
+    if not texts:
+        return []
+
+    model = get_embedding_model()
+    prefix = settings.EMBEDDING_QUERY_PREFIX if kind == "query" else settings.EMBEDDING_PASSAGE_PREFIX
+    prefixed_texts = [f"{prefix}{t.strip()}" if t and t.strip() else f"{prefix}" for t in texts]
+    embs = model.encode(prefixed_texts, normalize_embeddings=True)
+    import numpy as np
+    result: List[List[float]] = []
+    for emb in embs:
+        if np.isnan(emb).any():
+            emb = np.nan_to_num(emb, nan=0.0)
+            norm = np.linalg.norm(emb)
+            if norm > 0:
+                emb = emb / norm
+        result.append(emb.tolist())
+    return result
 
 def _split_oversized_block(block_text: str, page_num: int, chunk_size_words: int) -> List[Dict[str, Any]]:
     """
@@ -279,6 +405,9 @@ def index_document(document_id: int, db: Session) -> int:
     
     fallback_security_group = doc.security_groups[0].name if doc.security_groups else "default"
 
+    valid_chunk_data = []
+    texts_to_embed = []
+
     for cdata in raw_chunks:
         piece = cdata["text"]
         if not piece or not piece.strip():
@@ -309,7 +438,6 @@ def index_document(document_id: int, db: Session) -> int:
             if first_line and len(first_line) < 80 and not first_line[-1] in {'.', ':', '!', '?'}:
                 section = first_line
 
-        # Per-chunk metadata without is_full_document_citation
         metadata = {
             "source_format": source_format,
             "pagination_type": pagination_type,
@@ -317,19 +445,36 @@ def index_document(document_id: int, db: Session) -> int:
         }
         metadata_json = json.dumps(metadata)
 
-        emb = embed_text(piece)
+        valid_chunk_data.append({
+            "page_start": cdata["page_start"],
+            "page_end": cdata["page_end"],
+            "piece": piece,
+            "section": section,
+            "metadata_json": metadata_json,
+            "content_hash": content_hash
+        })
+        texts_to_embed.append(piece)
+
+    if not valid_chunk_data:
+        db.commit()
+        return 0
+
+    # Batch embed all chunks for the document in a single model forward pass
+    all_embeddings = embed_texts(texts_to_embed, kind="passage")
+
+    for i, item in enumerate(valid_chunk_data):
         chunk_obj = DocumentChunk(
             document_id=doc.id,
-            page_start=cdata["page_start"],
-            page_end=cdata["page_end"],
+            page_start=item["page_start"],
+            page_end=item["page_end"],
             chunk_index=chunk_index,
-            content=piece,
-            embedding=emb,
-            search_vector=func.to_tsvector("french", piece),
-            metadata_json=metadata_json,
-            section=section,
+            content=item["piece"],
+            embedding=all_embeddings[i],
+            search_vector=func.to_tsvector("french", item["piece"]),
+            metadata_json=item["metadata_json"],
+            section=item["section"],
             security_group=fallback_security_group,
-            content_hash=content_hash
+            content_hash=item["content_hash"]
         )
         db.add(chunk_obj)
         chunk_index += 1

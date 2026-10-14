@@ -41,6 +41,10 @@ jobs:
         pip install -r requirements.txt
         pip install pytest httpx
         
+    - name: Prepare Offline Models
+      run: |
+        python scripts/prepare_models.py
+        
     - name: Setup Database
       working-directory: ./backend
       env:
@@ -48,10 +52,10 @@ jobs:
       run: |
         alembic upgrade head
         
-    - name: Run Pytest
+    - name: Run Pytest & Confidentiality Tests
       working-directory: ./backend
       env:
         DATABASE_URL: postgresql://camrail_user:camrail_password@localhost:5432/railmind
-        LLM_PROVIDER: gemini
+        LLM_PROVIDER: ollama
       run: |
         pytest tests/ -v

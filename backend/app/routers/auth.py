@@ -23,21 +23,42 @@ if settings.MICROSOFT_CLIENT_ID and settings.MICROSOFT_CLIENT_SECRET:
         server_metadata_url=f'https://login.microsoftonline.com/{settings.MICROSOFT_TENANT_ID}/v2.0/.well-known/openid-configuration',
         client_kwargs={'scope': 'openid email profile'}
     )
+else:
+    import logging
+    logging.getLogger("railmind").info(
+        "SSO Microsoft désactivé : variables MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET non configurées."
+    )
 
 @router.get("/login/microsoft")
 async def login_microsoft(request: Request):
-    if not settings.MICROSOFT_CLIENT_ID:
-        # Mock successful login flow for demo without keys
-        return RedirectResponse(url="http://localhost:3000/assistant?mock_sso=true")
+    if not (settings.MICROSOFT_CLIENT_ID and settings.MICROSOFT_CLIENT_SECRET):
+        import logging
+        logger = logging.getLogger("railmind")
+        if getattr(settings, "APP_ENV", "development") == "development":
+            logger.warning(
+                "SSO Microsoft non configuré : redirection mock_sso active uniquement en mode développement."
+            )
+            return RedirectResponse(url=f"{settings.FRONTEND_URL.rstrip('/')}/assistant?mock_sso=true")
+        else:
+            logger.warning(
+                "Tentative de connexion SSO Microsoft alors que le service n'est pas configuré en production."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="L'authentification SSO Microsoft n'est pas configurée sur cette instance."
+            )
     
-    redirect_uri = request.url_for('auth_microsoft_callback')
-    # If url_for returns http instead of https, we might need to force https for production
+    api_base = settings.API_PUBLIC_URL.rstrip('/')
+    redirect_uri = f"{api_base}/api/v1/auth/callback/microsoft"
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
 @router.get("/callback/microsoft")
 async def auth_microsoft_callback(request: Request, db: Session = Depends(get_db)):
-    if not settings.MICROSOFT_CLIENT_ID:
-        raise HTTPException(status_code=400, detail="SSO non configuré")
+    if not (settings.MICROSOFT_CLIENT_ID and settings.MICROSOFT_CLIENT_SECRET):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SSO Microsoft non configuré"
+        )
         
     try:
         token = await oauth.microsoft.authorize_access_token(request)
@@ -85,8 +106,8 @@ async def auth_microsoft_callback(request: Request, db: Session = Depends(get_db
         entity_type="user", entity_id=str(user.id), details={"email": user.email}
     )
     
-    # Redirect to frontend
-    response = RedirectResponse(url="http://localhost:3000/assistant")
+    # Redirection vers l'URL publique configurée du frontend
+    response = RedirectResponse(url=f"{settings.FRONTEND_URL.rstrip('/')}/assistant")
     response.set_cookie(
         key="refresh_token", 
         value=access_token, 

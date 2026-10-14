@@ -2,25 +2,88 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-camrail-red: #d71920;
-  --color-camrail-red-dark: #b51218;
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Couleur de marque officielle CAMRAIL */
+  --color-camrail-red: #E00010;
+  --color-camrail-red-dark: #b5000d;
   --color-camrail-red-light: #fff1f2;
+  --color-camrail-red-subtle: #fef2f2;
+
+  /* Surfaces & Neutres chauds */
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8fafc;
+  --color-surface-muted: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-subtle: #cbd5e1;
+
+  /* Texte & Lisibilité WCAG AA (>= 4.5:1 sur fond clair) */
+  --color-text: #0f172a;          /* slate-900 */
+  --color-text-subtle: #334155;   /* slate-700 */
+  --color-text-muted: #475569;    /* slate-600 */
+
+  /* États doux (succès, attention, danger, neutre) */
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-success-text: #166534;
+
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #92400e;
+
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #991b1b;
+
+  --color-neutral-bg: #f8fafc;
+  --color-neutral-border: #e2e8f0;
+  --color-neutral-text: #334155;
+
+  /* Rayons et Ombres de cartes */
+  --radius-card: 14px;
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.03);
 }
 
 :root {
-  --background: #f8fafc; /* slate-50 */
-  --foreground: #0f172a; /* slate-900 */
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 body {
-  background: var(--background);
+  font-family: var(--font-sans);
+  background-color: var(--background);
   color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.6;
+  font-optical-sizing: auto;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Force light mode only for this enterprise app as requested */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+/* Typographie de base pour les paragraphes */
+p {
+  line-height: 1.6;
+}
+
+/* Accessibilité : anneau de focus visible (2px) pour la navigation clavier */
+:focus-visible {
+  outline: 2px solid var(--color-camrail-red);
+  outline-offset: 2px;
+}
+
+/* Respect impératif de prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

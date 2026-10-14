@@ -2,16 +2,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import settings
 
-# For SQLite, check_same_thread needs to be False
-connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+# Configuration du pool de connexions (exigences haute concurrence ~1000 utilisateurs)
+engine_kwargs = {
+    "echo": False,
+    "pool_pre_ping": True,
+    "pool_recycle": 1800,
+}
 
-engine = create_engine(
-    settings.DATABASE_URL, 
-    connect_args=connect_args,
-    echo=False
-)
+if settings.DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs["pool_size"] = getattr(settings, "DB_POOL_SIZE", 10)
+    engine_kwargs["max_overflow"] = getattr(settings, "DB_MAX_OVERFLOW", 20)
+    engine_kwargs["pool_timeout"] = getattr(settings, "DB_POOL_TIMEOUT", 30)
+
+engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
