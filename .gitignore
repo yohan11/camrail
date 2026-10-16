@@ -1,4 +1,4 @@
-﻿# ==========================================
+# ==========================================
 # CAMRAIL RailMind Lite - Root .gitignore
 # ==========================================
 
@@ -41,6 +41,13 @@ backend/uploads/
 uploads/
 *.pdf.downloading
 *.safetensors.downloading
+
+# Local AI Models (Never commit model weights > 100 MB)
+backend/models/
+models/
+*.safetensors
+*.bin
+*.onnx
 
 # Temporary files & logs
 *.log

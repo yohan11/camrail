@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthGuard from "@/components/AuthGuard";
 import { apiFetch, ApiError } from "@/lib/api";
-import { getSession, getUserFirstName } from "@/lib/auth";
+import { getSession, getUserFirstName, getAccessToken } from "@/lib/auth";
 import type { BackendCitation, AssistantResponse } from "@/lib/backend-types";
 import ReactMarkdown from "react-markdown";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -300,7 +300,7 @@ function AssistantContent() {
     ]);
 
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = getAccessToken() || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const payload: any = { query: trimmedQuestion, language: language };
       if (conversationId) {

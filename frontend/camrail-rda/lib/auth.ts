@@ -25,6 +25,9 @@ export function saveSession(session: AuthSession): void {
 
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    if (session.token && typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("token", session.token);
+    }
   } catch {
     // best-effort: swallow storage errors
   }
@@ -53,6 +56,7 @@ export function clearSession(): void {
         sessionStorage.removeItem(SESSION_KEY);
       }
       if (window.localStorage) {
+        window.localStorage.removeItem("token");
         for (let i = window.localStorage.length - 1; i >= 0; i--) {
           const key = window.localStorage.key(i);
           if (key && key.startsWith("evidence:")) {
@@ -68,11 +72,23 @@ export function clearSession(): void {
 
 export function setAccessToken(token: string | null) {
   inMemoryToken = token;
+  if (typeof window !== "undefined" && window.localStorage) {
+    if (token) {
+      window.localStorage.setItem("token", token);
+    } else {
+      window.localStorage.removeItem("token");
+    }
+  }
 }
 
 export function getAccessToken(): string | null {
   const session = getSession();
-  return session?.token || inMemoryToken;
+  if (session?.token) return session.token;
+  if (inMemoryToken) return inMemoryToken;
+  if (typeof window !== "undefined" && window.localStorage) {
+    return window.localStorage.getItem("token");
+  }
+  return null;
 }
 
 export async function refreshAccessToken(): Promise<AuthSession | null> {
