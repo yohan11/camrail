@@ -2,6 +2,9 @@
 
 Ce sous-projet contient l'API REST FastAPI de **RailMind Lite**, le moteur RAG documentaire souverain développé pour CAMRAIL.
 
+> 📖 **Document de Référence Unique pour l'Installation** :  
+> Pour la procédure complète, exhaustive et détaillée pas-à-pas (Windows & Linux côte à côte, gestion des poids d'embedding, Ollama, pgvector, Poppler, Tesseract OCR), consultez le document maître **[GUIDE_INSTALLATION.md](../GUIDE_INSTALLATION.md)** ou sa version PDF **[GUIDE_INSTALLATION.pdf](../GUIDE_INSTALLATION.pdf)**.
+
 ---
 
 ## 1. Caractéristiques d'Architecture

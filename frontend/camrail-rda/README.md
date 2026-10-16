@@ -2,6 +2,9 @@
 
 Interface web moderne pour l'assistant documentaire et la recherche intelligente CAMRAIL RailMind Lite.
 
+> 📖 **Document de Référence Unique pour l'Installation** :  
+> Pour la procédure complète et exhaustive d'installation et de déploiement (Windows & Linux, Node.js, variables d'environnement, démarrage dev & production), consultez le document maître **[GUIDE_INSTALLATION.md](../../GUIDE_INSTALLATION.md)** ou sa version PDF **[GUIDE_INSTALLATION.pdf](../../GUIDE_INSTALLATION.pdf)**.
+
 ## Caractéristiques Techniques
 - **Framework** : Next.js 15 (App Router), React 19, TypeScript.
 - **Styling** : TailwindCSS v4, thème corporate aux couleurs de CAMRAIL (#d71920).
