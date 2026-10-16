@@ -19,7 +19,7 @@ Avant de déployer sur un serveur de production isolé d'Internet :
    python scripts/prepare_models.py
    ```
    Ce script télécharge les poids dans le dossier `backend/models`. Transférez ensuite ce dossier sur le serveur cible.
-2. **Modèles Ollama** : Suivez le guide complet [scripts/prepare_ollama.md](scripts/prepare_ollama.md) pour télécharger le modèle (`ollama pull llama3.2:3b`), archiver le dossier des modèles Ollama et le restaurer sur le serveur hors-ligne.
+2. **Guide Complet d'Installation** : Consultez le document maître [GUIDE_INSTALLATION.md](GUIDE_INSTALLATION.md) pour le guide pas-à-pas (Windows & Linux, modèles, base de données, profils matériels et mode déconnecté).
 
 ---
 

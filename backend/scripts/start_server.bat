@@ -19,7 +19,12 @@ rem ============================================================================
 setlocal enabledelayedexpansion
 
 rem Se positionner dans le dossier backend
-cd /d "%~dp0\..ackend"
+cd /d "%~dp0\.."
+
+rem Activation de l'environnement virtuel Python si present
+if exist "venv\Scripts\activate.bat" (
+    call venv\Scripts\activate.bat
+)
 
 if "%UVICORN_WORKERS%"=="" set UVICORN_WORKERS=2
 if "%HOST%"=="" set HOST=0.0.0.0
@@ -31,7 +36,7 @@ echo   Ecoute sur http://%HOST%:%PORT%
 echo ==============================================================================
 
 rem Verification prealable des modeles hors-ligne
-python ..\scripts\prepare_models.py
+python scripts\prepare_models.py
 
 rem Demarrage du serveur ASGI multi-workers
 uvicorn app.main:app --host %HOST% --port %PORT% --workers %UVICORN_WORKERS%
