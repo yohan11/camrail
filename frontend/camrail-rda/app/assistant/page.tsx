@@ -12,7 +12,6 @@ import ReactMarkdown from "react-markdown";
 import { useLanguage } from "@/lib/LanguageContext";
 import { SUGGESTED_QUESTIONS } from "@/lib/suggestions";
 import { formatConfidence, getConfidenceDescription } from "@/lib/labels";
-import { Skeleton } from "@/components/ui/skeleton";
 
 type Citation = BackendCitation;
 
@@ -79,11 +78,23 @@ function AssistantContent() {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const typingQueueRef = useRef<string>("");
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const streamDoneRef = useRef(false);
+  const pendingCitationsRef = useRef<Citation[]>([]);
+  const pendingConfidenceRef = useRef<"high" | "medium" | "insufficient" | undefined>(undefined);
+  const pendingAbstentionRef = useRef<boolean>(false);
+  const currentConversationIdRef = useRef<number | null>(null);
+  const isQueryingRef = useRef<boolean>(false);
 
   // Load user name and doc count
   useEffect(() => {
@@ -144,16 +155,145 @@ function AssistantContent() {
     }
   };
 
-  const handleSpeak = (text: string) => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        return;
-      }
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === 'fr' ? 'fr-FR' : 'en-US';
-      window.speechSynthesis.speak(utterance);
+  const cleanForSpeech = (raw: string) => {
+    return raw
+      .replace(/\[(?:source\s*)?\d+\]/gi, "")
+      .replace(/#{1,6}\s+/g, "")
+      .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/[-*+]\s+/g, "")
+      .replace(/\n+/g, ". ")
+      .trim();
+  };
+
+  const handleSpeak = (text: string, msgIndex: number) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      alert("La synthèse vocale n'est pas supportée par votre navigateur.");
+      return;
     }
+
+    // Si ce message est déjà en train d'être lu, un clic l'interrompt
+    if (speakingIndex === msgIndex) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      activeUtteranceRef.current = null;
+      return;
+    }
+
+    // Réinitialisation de la synthèse
+    window.speechSynthesis.cancel();
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+
+    const cleaned = cleanForSpeech(text);
+    if (!cleaned) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleaned);
+    // Conserver la référence dans activeUtteranceRef pour parer au bug de garbage collection Chromium
+    activeUtteranceRef.current = utterance;
+
+    utterance.lang = language === 'fr' ? 'fr-FR' : 'en-US';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const targetPrefix = language === 'fr' ? 'fr' : 'en';
+      const matched = voices.find(v => v.lang.toLowerCase().startsWith(targetPrefix));
+      if (matched) {
+        utterance.voice = matched;
+      }
+    }
+
+    utterance.onend = () => {
+      setSpeakingIndex(null);
+      activeUtteranceRef.current = null;
+    };
+
+    utterance.onerror = (e) => {
+      console.warn("Erreur de synthèse vocale :", e);
+      setSpeakingIndex(null);
+      activeUtteranceRef.current = null;
+    };
+
+    setSpeakingIndex(msgIndex);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startTypingLoop = () => {
+    if (typingTimerRef.current) return;
+
+    typingTimerRef.current = setInterval(() => {
+      const queue = typingQueueRef.current;
+
+      if (queue.length > 0) {
+        // Vitesse adaptative pour une frappe fluide type ChatGPT / Gemini
+        let step = 1;
+        if (queue.length > 80) step = 5;
+        else if (queue.length > 40) step = 3;
+        else if (queue.length > 15) step = 2;
+
+        const chunk = queue.slice(0, step);
+        typingQueueRef.current = queue.slice(step);
+
+        setMessages((current) => {
+          if (current.length === 0) return current;
+          const updated = [...current];
+          let lastAsstIdx = -1;
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === "assistant") {
+              lastAsstIdx = i;
+              break;
+            }
+          }
+          if (lastAsstIdx === -1) {
+            updated.push({
+              role: "assistant",
+              content: chunk,
+              citations: [],
+            });
+          } else {
+            updated[lastAsstIdx] = {
+              ...updated[lastAsstIdx],
+              content: updated[lastAsstIdx].content + chunk,
+            };
+          }
+          return updated;
+        });
+      } else if (streamDoneRef.current) {
+        if (typingTimerRef.current) {
+          clearInterval(typingTimerRef.current);
+          typingTimerRef.current = null;
+        }
+
+        setMessages((current) => {
+          if (current.length === 0) return current;
+          const updated = [...current];
+          let lastAsstIdx = -1;
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === "assistant") {
+              lastAsstIdx = i;
+              break;
+            }
+          }
+          if (lastAsstIdx !== -1) {
+            updated[lastAsstIdx] = {
+              ...updated[lastAsstIdx],
+              citations: pendingCitationsRef.current,
+              confidence: pendingConfidenceRef.current,
+              abstention: pendingAbstentionRef.current,
+            };
+          }
+          return updated;
+        });
+
+        setIsTyping(false);
+        setLoading(false);
+        setStreamingStatus("idle");
+      }
+    }, 18);
   };
 
   const handleStopGeneration = () => {
@@ -161,14 +301,39 @@ function AssistantContent() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    if (typingTimerRef.current) {
+      clearInterval(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+    typingQueueRef.current = "";
+    streamDoneRef.current = true;
+    setIsTyping(false);
     setLoading(false);
     setStreamingStatus("idle");
   };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearInterval(typingTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Load chat history from server if param c exists, else use sessionStorage
   useEffect(() => {
     if (cParam) {
       const cid = parseInt(cParam, 10);
+      if (currentConversationIdRef.current === cid || isQueryingRef.current) {
+        return;
+      }
+      currentConversationIdRef.current = cid;
       setConversationId(cid);
       setLoading(true);
       apiFetch(`/assistant/conversations/${cid}/messages`)
@@ -185,7 +350,9 @@ function AssistantContent() {
         .catch((err) => {
           console.error(err);
           if (err.status === 404) {
-            router.replace("/assistant");
+            if (typeof window !== "undefined") {
+              window.history.replaceState(null, "", "/assistant");
+            }
           }
         })
         .finally(() => {
@@ -193,6 +360,9 @@ function AssistantContent() {
           setIsLoaded(true);
         });
     } else {
+      if (currentConversationIdRef.current !== null) {
+        currentConversationIdRef.current = null;
+      }
       const saved = sessionStorage.getItem("railmind_chat_messages");
       const savedConvId = sessionStorage.getItem("railmind_conversation_id");
       
@@ -205,7 +375,9 @@ function AssistantContent() {
       }
       
       if (savedConvId) {
-        setConversationId(parseInt(savedConvId, 10));
+        const parsed = parseInt(savedConvId, 10);
+        setConversationId(parsed);
+        currentConversationIdRef.current = parsed;
       }
       
       setIsLoaded(true);
@@ -266,7 +438,7 @@ function AssistantContent() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, loading, streamingStatus]);
+  }, [messages, loading, streamingStatus, isTyping]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -277,19 +449,12 @@ function AssistantContent() {
     const textToSubmit = forcedQuestion || question;
     const trimmedQuestion = textToSubmit.trim();
 
-    if (!trimmedQuestion || loading) return;
+    if (!trimmedQuestion || loading || isTyping) return;
 
-    setMessages((current) => [...current, { role: "user", content: trimmedQuestion }]);
-    if (!forcedQuestion) setQuestion("");
-    setLoading(true);
-    setStreamingStatus("searching");
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    // Ajouter un message assistant vide pour accueillir les tokens au fil de l'eau
+    isQueryingRef.current = true;
     setMessages((current) => [
       ...current,
+      { role: "user", content: trimmedQuestion },
       {
         role: "assistant",
         content: "",
@@ -298,15 +463,29 @@ function AssistantContent() {
         abstention: false
       }
     ]);
+    if (!forcedQuestion) setQuestion("");
+    setLoading(true);
+    setStreamingStatus("searching");
+
+    // Initialisation de la file typewriter
+    typingQueueRef.current = "";
+    streamDoneRef.current = false;
+    pendingCitationsRef.current = [];
+    pendingConfidenceRef.current = undefined;
+    pendingAbstentionRef.current = false;
+    setIsTyping(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const token = getAccessToken() || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const payload: any = { query: trimmedQuestion, language: language };
+    if (conversationId) {
+      payload.conversation_id = conversationId;
+    }
 
     try {
-      const token = getAccessToken() || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const payload: any = { query: trimmedQuestion, language: language };
-      if (conversationId) {
-        payload.conversation_id = conversationId;
-      }
-
       const response = await fetch(`${apiUrl}/api/v1/assistant/query/stream`, {
         method: "POST",
         headers: {
@@ -354,46 +533,33 @@ function AssistantContent() {
             const dataStr = trimmed.slice(5).trim();
             try {
               const data = JSON.parse(dataStr);
-              if (currentEvent === "sources") {
-                setStreamingStatus("drafting");
-                if (data.conversation_id && !conversationId) {
+              if (currentEvent === "meta") {
+                if (data.conversation_id) {
                   setConversationId(data.conversation_id);
+                  currentConversationIdRef.current = data.conversation_id;
                   window.dispatchEvent(new Event("reload-conversations"));
-                  router.replace(`?c=${data.conversation_id}`);
-                }
-                setMessages((current) => {
-                  const updated = [...current];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    last.citations = data.sources || [];
-                    last.confidence = data.confidence;
+                  if (typeof window !== "undefined") {
+                    window.history.replaceState(null, "", `?c=${data.conversation_id}`);
                   }
-                  return updated;
-                });
+                }
               } else if (currentEvent === "token") {
                 setStreamingStatus("drafting");
-                const tokenText = data.token || "";
-                setMessages((current) => {
-                  const updated = [...current];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    last.content += tokenText;
-                  }
-                  return updated;
-                });
+                typingQueueRef.current += (data.token || "");
+                startTypingLoop();
               } else if (currentEvent === "done") {
-                setStreamingStatus("idle");
-                setMessages((current) => {
-                  const updated = [...current];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    last.content = data.answer || last.content;
-                    last.citations = data.citations || last.citations;
-                    last.confidence = data.confidence || last.confidence;
-                    last.abstention = data.confidence === "insufficient";
+                if (data.conversation_id) {
+                  setConversationId(data.conversation_id);
+                  currentConversationIdRef.current = data.conversation_id;
+                  window.dispatchEvent(new Event("reload-conversations"));
+                  if (typeof window !== "undefined") {
+                    window.history.replaceState(null, "", `?c=${data.conversation_id}`);
                   }
-                  return updated;
-                });
+                }
+                pendingCitationsRef.current = data.citations || [];
+                pendingConfidenceRef.current = data.confidence;
+                pendingAbstentionRef.current = data.confidence === "insufficient";
+                streamDoneRef.current = true;
+                startTypingLoop();
               } else if (currentEvent === "error") {
                 throw new Error(data.detail || "Erreur de génération");
               }
@@ -408,21 +574,73 @@ function AssistantContent() {
         console.log("Génération interrompue par l'utilisateur.");
         return;
       }
+
+      // Repli gracieux vers la route standard non-stream
+      try {
+        console.warn("Échec stream, tentative via route standard non-stream:", error);
+        const standardData: AssistantResponse = await apiFetch("/assistant/query", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        if (standardData) {
+          if (standardData.conversation_id) {
+            setConversationId(standardData.conversation_id);
+            currentConversationIdRef.current = standardData.conversation_id;
+            window.dispatchEvent(new Event("reload-conversations"));
+            if (typeof window !== "undefined") {
+              window.history.replaceState(null, "", `?c=${standardData.conversation_id}`);
+            }
+          }
+          pendingCitationsRef.current = standardData.citations || [];
+          pendingConfidenceRef.current = standardData.confidence;
+          pendingAbstentionRef.current = standardData.abstention || false;
+          streamDoneRef.current = true;
+          typingQueueRef.current = standardData.answer || "";
+          startTypingLoop();
+          return;
+        }
+      } catch (fallbackError: any) {
+        console.error("Échec du repli standard:", fallbackError);
+      }
+
+      if (typingTimerRef.current) {
+        clearInterval(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+      setIsTyping(false);
+      setLoading(false);
+      setStreamingStatus("idle");
+
       setMessages((current) => {
         const updated = [...current];
-        const last = updated[updated.length - 1];
-        if (last && last.role === "assistant" && !last.content) {
-          last.content = language === 'fr' 
-            ? `Impossible d'effectuer la recherche : ${error.message || "Erreur serveur"}` 
-            : `Unable to perform search: ${error.message || "Server error"}`;
-          last.confidence = "insufficient";
-          last.abstention = true;
+        let lastAsstIdx = -1;
+        for (let i = updated.length - 1; i >= 0; i--) {
+          if (updated[i].role === "assistant") {
+            lastAsstIdx = i;
+            break;
+          }
+        }
+        const errorMsg = language === 'fr' 
+          ? `Impossible d'effectuer la recherche : ${error.message || "Erreur serveur"}` 
+          : `Unable to perform search: ${error.message || "Server error"}`;
+        if (lastAsstIdx !== -1) {
+          if (!updated[lastAsstIdx].content) {
+            updated[lastAsstIdx].content = errorMsg;
+          }
+          updated[lastAsstIdx].confidence = "insufficient";
+          updated[lastAsstIdx].abstention = true;
+        } else {
+          updated.push({
+            role: "assistant",
+            content: errorMsg,
+            confidence: "insufficient",
+            abstention: true
+          });
         }
         return updated;
       });
     } finally {
-      setLoading(false);
-      setStreamingStatus("idle");
+      isQueryingRef.current = false;
       abortControllerRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 10);
     }
@@ -551,24 +769,42 @@ function AssistantContent() {
                         <div className="relative group max-w-[70ch]">
                           <div className="prose prose-base prose-slate max-w-[70ch] leading-relaxed text-slate-800">
                             {renderFormattedMarkdown(message.content, message.citations)}
+                            {isTyping && index === messages.length - 1 && (
+                              <span 
+                                className="inline-block w-2.5 h-4.5 ml-1 bg-camrail-red rounded-[1px] animate-pulse align-middle" 
+                                aria-hidden="true"
+                              />
+                            )}
                           </div>
                           {/* TTS Button */}
-                          <button
-                            onClick={() => handleSpeak(message.content)}
-                            title={t("assistant.listen")}
-                            className="absolute -right-2 top-0 p-1.5 text-slate-500 hover:text-camrail-red hover:bg-slate-100 rounded-lg opacity-0 group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-                          </button>
+                          {!isTyping && message.content && (
+                            <button
+                              onClick={() => handleSpeak(message.content, index)}
+                              title={speakingIndex === index 
+                                ? (language === 'fr' ? "Arrêter la lecture" : "Stop reading") 
+                                : (language === 'fr' ? "Écouter la réponse" : "Listen to answer")}
+                              className={`absolute -right-2 top-0 p-1.5 rounded-lg transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red ${
+                                speakingIndex === index 
+                                  ? "bg-red-100 text-camrail-red animate-pulse shadow-xs opacity-100" 
+                                  : "text-slate-400 hover:text-camrail-red hover:bg-slate-100 opacity-80 hover:opacity-100"
+                              }`}
+                            >
+                              {speakingIndex === index ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                              )}
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap text-base text-slate-800 leading-relaxed font-medium max-w-[70ch]">{message.content}</p>
                       )}
                     </div>
 
-                    {/* Assistant Metadata (Confidence & Citations) */}
-                    {message.role === "assistant" && (
-                      <div className="w-full mt-4 space-y-3 max-w-[70ch]">
+                    {/* Assistant Metadata (Confidence & Citations) : visible uniquement après la fin complète de la rédaction */}
+                    {message.role === "assistant" && Boolean(message.content && message.content.trim()) && (!isTyping || index < messages.length - 1) && (
+                      <div className="w-full mt-4 space-y-3 max-w-[70ch] transition-opacity duration-500 ease-out">
                         {message.confidence && (
                           <div className="flex items-center gap-2">
                             <span
@@ -674,47 +910,23 @@ function AssistantContent() {
                 </div>
               ))}
 
-              {/* Indicateur de chargement & étapes : Recherche -> Rédaction avec Skeletons */}
-              {loading && (
-                <div className="flex flex-col gap-4 p-5 rounded-xl bg-white border border-slate-200 shadow-sm max-w-[70ch]">
-                  <div className="flex items-center gap-3">
-                    <div className="shrink-0 h-8 w-8 flex items-center justify-center bg-white border border-slate-100 rounded-full shadow-sm">
-                      <img src="/camrail-logo-transparent.png" alt="RailMind" className="h-4 w-auto object-contain" />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex gap-1">
-                        <span className="h-2 w-2 bg-camrail-red rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                        <span className="h-2 w-2 bg-camrail-red rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                        <span className="h-2 w-2 bg-camrail-red rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
-                      </div>
-                      <span className="text-sm font-semibold text-slate-800">
-                        {streamingStatus === "drafting"
-                          ? t("assistant.drafting")
-                          : t("assistant.searching")}
-                      </span>
-                    </div>
+              {/* Indicateur de chargement : Recherche -> Rédaction (visible uniquement avant le début de frappe) */}
+              {loading && (!messages[messages.length - 1]?.content || streamingStatus === "searching") && (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 shadow-sm max-w-[70ch]">
+                  <div className="shrink-0 h-8 w-8 flex items-center justify-center bg-white border border-slate-100 rounded-full shadow-sm">
+                    <img src="/camrail-logo-transparent.png" alt="RailMind" className="h-4 w-auto object-contain" />
                   </div>
-                  {/* Skeleton des sources en cours d'extraction */}
-                  <div className="mt-1 pt-3 border-t border-slate-100 space-y-2">
-                    <div className="h-3 w-36 bg-slate-200 rounded animate-pulse"></div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <Skeleton variant="text" className="w-16 h-3" />
-                          <Skeleton variant="text" className="w-12 h-3" />
-                        </div>
-                        <Skeleton variant="text" className="w-4/5 h-4" />
-                        <Skeleton variant="rectangular" className="w-full h-10 rounded-lg" />
-                      </div>
-                      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 hidden sm:block">
-                        <div className="flex justify-between items-center">
-                          <Skeleton variant="text" className="w-16 h-3" />
-                          <Skeleton variant="text" className="w-12 h-3" />
-                        </div>
-                        <Skeleton variant="text" className="w-3/4 h-4" />
-                        <Skeleton variant="rectangular" className="w-full h-10 rounded-lg" />
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1">
+                      <span className="h-2 w-2 bg-camrail-red rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                      <span className="h-2 w-2 bg-camrail-red rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                      <span className="h-2 w-2 bg-camrail-red rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
                     </div>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {streamingStatus === "drafting"
+                        ? t("assistant.drafting")
+                        : t("assistant.searching")}
+                    </span>
                   </div>
                 </div>
               )}
@@ -735,7 +947,8 @@ function AssistantContent() {
           <div className="max-w-3xl mx-auto">
             <form 
               onSubmit={handleSubmit}
-              className="relative rounded-2xl border border-slate-300 bg-white shadow-lg overflow-hidden focus-within:border-camrail-red focus-within:ring-2 focus-within:ring-camrail-red/20 transition-all"
+              className="relative rounded-2xl border-2 border-camrail-red bg-white shadow-sm transition-all focus-within:shadow-md outline-none ring-0 focus-within:ring-0 focus-within:border-camrail-red"
+              style={{ outline: "none", outlineOffset: 0 }}
             >
               <textarea
                 ref={inputRef}
@@ -743,11 +956,14 @@ function AssistantContent() {
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t("chat.placeholder")}
-                className="w-full resize-none bg-transparent py-4 pl-4 pr-28 text-base text-slate-900 placeholder-slate-400 focus:outline-none min-h-[60px] max-h-[200px]"
+                spellCheck={false}
+                autoComplete="off"
+                className="w-full resize-none bg-transparent py-3.5 pl-4 pr-28 text-base text-slate-900 placeholder-slate-400 border-none outline-none ring-0 focus:outline-none focus:ring-0 min-h-[58px] max-h-[200px] leading-relaxed"
+                style={{ outline: "none", outlineOffset: 0, border: "none", boxShadow: "none" }}
                 rows={Math.min(5, Math.max(1, question.split('\n').length))}
-                disabled={loading || isListening}
+                disabled={(loading && !isTyping) || isListening}
               />
-              <div className="absolute right-2 bottom-2 flex items-center gap-1.5">
+              <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
                 {/* Voice Input Button */}
                 <button
                   type="button"
@@ -763,7 +979,7 @@ function AssistantContent() {
                 </button>
 
                 {/* Bouton Arrêter ou Bouton Envoyer */}
-                {loading ? (
+                {loading || isTyping ? (
                   <button
                     type="button"
                     onClick={handleStopGeneration}

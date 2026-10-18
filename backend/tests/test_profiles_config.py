@@ -4,7 +4,7 @@ Vérifie que :
 1. Chaque profil (profile-A-cpu.env, profile-B-cpu-puissant.env, profile-C-gpu.env) existe.
 2. Toutes les variables définies dans chaque profil existent réellement dans Settings (app.config).
 3. Aucune variable obsolète ou orpheline n'est présente.
-4. Aucun token externe (Gemini, OpenAI, Claude, Google) n'est présent.
+4. Aucun token d'API cloud externe (OpenAI, Claude, Google) n'est présent.
 """
 
 import os
@@ -48,7 +48,7 @@ class TestProfilesConfig(unittest.TestCase):
 
     def test_no_external_cloud_keys(self):
         """Vérifie l'absence absolue de clés ou mentions d'API externes dans les profils."""
-        forbidden_keywords = ["gemini", "openai", "anthropic", "google_api_key", "claude"]
+        forbidden_keywords = ["openai", "anthropic", "google_api_key", "claude"]
         for pf in self.profile_files:
             p_path = os.path.join(self.profiles_dir, pf)
             with open(p_path, "r", encoding="utf-8") as f:

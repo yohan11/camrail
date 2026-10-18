@@ -10,9 +10,9 @@ def get_effective_search_scope(user: User) -> Tuple[Optional[str], Optional[List
     """
     Returns (department, security_groups) based on the user's role.
     - Admins see all departments and all security groups.
-    - Read-only users are restricted to their department (if set) and their assigned security groups.
+    - Read-only users are restricted to their assigned security groups (RBAC).
     """
-    department = user.department if user.role == UserRole.READ_ONLY else None
+    department = None
     
     if user.role in [UserRole.ADMIN, UserRole.DOCUMENT_ADMIN]:
         security_groups = None

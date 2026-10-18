@@ -70,11 +70,19 @@ p {
   line-height: 1.6;
 }
 
-/* Accessibilité : anneau de focus visible (2px) pour la navigation clavier */
-:focus-visible {
+/* Accessibilité : anneau de focus visible pour la navigation clavier (exclut expressément la zone de saisie et formulaires) */
+:focus-visible:not(input):not(textarea):not(form):not([contenteditable="true"]) {
   outline: 2px solid var(--color-camrail-red);
   outline-offset: 2px;
 }
+
+/* Élimination stricte de tout double contour, anneau ou outline parasite sur les champs de saisie */
+input, textarea, form {
+  outline: none !important;
+  outline-offset: 0 !important;
+  -webkit-appearance: none;
+}
+
 
 /* Respect impératif de prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {

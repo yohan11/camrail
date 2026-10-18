@@ -38,7 +38,7 @@ def seed_database(db: Session):
                     "password": "readonlypassword",
                     "full_name": "Read-Only User",
                     "role": "read_only",
-                    "department": "Formation"
+                    "department": None
                 }
             ]
             

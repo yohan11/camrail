@@ -288,8 +288,8 @@ def assistant_query_stream(
 
     def event_stream():
         full_answer = ""
-        # 1. Émettre l'évènement "sources" dès que la recherche est terminée
-        yield f"event: sources\ndata: {json.dumps({'sources': initial_sources_payload, 'confidence': rag_prep['confidence'], 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+        # 1. Émettre les métadonnées de démarrage
+        yield f"event: meta\ndata: {json.dumps({'conversation_id': conv_id, 'confidence': rag_prep['confidence']}, ensure_ascii=False)}\n\n"
 
         # 2. Cas d'abstention immédiate
         if rag_prep.get("is_abstain", False):

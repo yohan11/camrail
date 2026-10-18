@@ -72,9 +72,9 @@ def _generate_with_ollama(system_prompt: str, user_message: str) -> str:
         "stream": False,
         "options": {
             "temperature": 0.0,
-            "num_predict": getattr(settings, "OLLAMA_NUM_PREDICT", 400),
-            "num_ctx": getattr(settings, "OLLAMA_NUM_CTX", 6144),
-            "num_thread": 8
+            "num_predict": getattr(settings, "OLLAMA_NUM_PREDICT", 250),
+            "num_ctx": getattr(settings, "OLLAMA_NUM_CTX", 2048),
+            "num_thread": getattr(settings, "OLLAMA_NUM_THREAD", 4)
         }
     }
     
@@ -111,9 +111,9 @@ def _generate_with_ollama_stream(system_prompt: str, user_message: str) -> Gener
         "stream": True,
         "options": {
             "temperature": 0.0,
-            "num_predict": getattr(settings, "OLLAMA_NUM_PREDICT", 400),
-            "num_ctx": getattr(settings, "OLLAMA_NUM_CTX", 6144),
-            "num_thread": 8
+            "num_predict": getattr(settings, "OLLAMA_NUM_PREDICT", 250),
+            "num_ctx": getattr(settings, "OLLAMA_NUM_CTX", 2048),
+            "num_thread": getattr(settings, "OLLAMA_NUM_THREAD", 4)
         }
     }
     ollama_url = f"{settings.OLLAMA_BASE_URL}/api/chat"
@@ -221,7 +221,7 @@ def prepare_rag_prompt_and_citations(query: str, search_results: List[Dict[str, 
         }
     
     filtered_results.sort(key=lambda res: res.get("vector_distance") if res.get("vector_distance") is not None else 999.0)
-    filtered_results = filtered_results[:getattr(settings, 'RAG_LLM_TOP_K', 4)]
+    filtered_results = filtered_results[:getattr(settings, 'RAG_LLM_TOP_K', 2)]
     
     for i, res in enumerate(filtered_results, start=1):
         title = res.get("document_title", "Document inconnu")
@@ -239,7 +239,7 @@ def prepare_rag_prompt_and_citations(query: str, search_results: List[Dict[str, 
         if p_type == "virtual":
             page_label = f"📄 {page_label}"
             
-        excerpt_clean = content[:1200] + "..." if len(content) > 1200 else content
+        excerpt_clean = content[:500] + "..." if len(content) > 500 else content
         user_message += f"Extrait {i} (source : {title}, {page_label}) :\n<extrait>\n{excerpt_clean}\n</extrait>\n\n"
         
         doc_id = res.get("document_id", 0)

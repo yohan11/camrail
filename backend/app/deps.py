@@ -13,6 +13,8 @@ def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: 
     if not token:
         token = request.query_params.get("token")
     if not token:
+        token = request.cookies.get("token") or request.cookies.get("access_token")
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",

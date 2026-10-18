@@ -7,7 +7,7 @@ Bienvenue dans le dépôt du projet **RailMind Lite** développé pour CAMRAIL. 
 ## Confidentialité et Exécution 100% Locale
 
 Conformément aux exigences strictes du cahier des charges de CAMRAIL :
-- **Intelligence Artificielle Locale (Ollama)** : La génération de réponses s'effectue exclusivement en local via Ollama (`llama3.2:3b`). Aucun appel vers des API d'IA externes (Gemini, OpenAI, Anthropic) n'est effectué. En cas d'indisponibilité du service Ollama, une erreur 503 claire est renvoyée sans aucun repli externe.
+- **Intelligence Artificielle 100% Locale (Ollama)** : La génération de réponses s'effectue exclusivement en local via le moteur souverain Ollama (`llama3.2:3b`). Aucun appel vers des API d'IA cloud externes n'est effectué. En cas d'indisponibilité du service Ollama, une erreur 503 claire est renvoyée sans aucun basculement ou repli externe.
 - **Embeddings et Recherche Vectorielle Locaux** : Les représentations vectorielles (`intfloat/multilingual-e5-small`) et le reranker optionnel sont chargés directement depuis le dossier local `MODELS_DIR` (`./models`), avec interdiction absolue d'appels réseau (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`).
 - **Souveraineté des Données** : Aucune donnée documentaire, aucune métadonnée et aucune requête utilisateur ne quitte le serveur.
 - **Circuit Réseau Fermé (Air-Gapped)** : Le système ne réalise aucun appel réseau sortant en production (garanti et vérifié par tests automatisés sous monkeypatching strict).
