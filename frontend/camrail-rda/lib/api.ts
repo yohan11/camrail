@@ -38,6 +38,7 @@ export async function apiFetch(
 
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
+    credentials: "include",
     headers,
   });
 
@@ -55,6 +56,7 @@ export async function apiFetch(
 
       const retryResp = await fetch(`${apiUrl}${path}`, {
         ...options,
+        credentials: "include",
         headers: retryHeaders,
       });
 

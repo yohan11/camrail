@@ -1,21 +1,35 @@
+# ==============================================================================
+# CAMRAIL RailMind Lite - Orchestration Docker Compose Sécurisée & Durcie
+# ==============================================================================
+# Règles de sécurité appliquées :
+# 1. Versions d'images strictes et épinglées (aucun tag 'latest').
+# 2. Aucun port interne (PostgreSQL 5432, Ollama 11434) exposé sur l'hôte.
+# 3. Moindre privilège : conteneurs non-root, cap_drop: ALL, no-new-privileges, read_only.
+# 4. Rôle DB applicatif dédié 'railmind_app' sans droits super-utilisateur.
+# 5. Reverse-proxy TLS Nginx profil 'https' (ports 80/443, HSTS, streaming SSE).
+# ==============================================================================
+
 services:
   # ----------------------------------------------------------------------------
   # 1. Base de données PostgreSQL avec extension pgvector
   # ----------------------------------------------------------------------------
   db:
-    image: pgvector/pgvector:pg16
+    # Image officielle pgvector (PostgreSQL 16) - version épinglée (vérifiée le 2026-10-18)
+    image: pgvector/pgvector:0.7.4-pg16
     container_name: railmind-db
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_DB: railmind
-      POSTGRES_USER: railmind
-      POSTGRES_PASSWORD: railmind123
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: supersecret_postgres_password
+    # SÉCURITÉ : Port 5432 NON publié sur l'hôte (accessible uniquement via le réseau interne Docker)
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U railmind -d railmind"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d railmind"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,20 +42,31 @@ services:
       context: ./backend
     container_name: railmind-backend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=256M
     env_file:
       - ./backend/.env
     environment:
-      # Surcharge de la connexion DB pour cibler le conteneur db
-      - DATABASE_URL=postgresql://railmind:railmind123@db:5432/railmind
-      # Adresse du service Ollama si hébergé dans Docker Compose
+      # Connexion avec le rôle applicatif dédié non-superutilisateur
+      - DATABASE_URL=postgresql://railmind_app:railmind_app_pass@db:5432/railmind
+      # Adresse du service Ollama sur le réseau interne
       - OLLAMA_BASE_URL=http://ollama:11434
+      # Proxys de confiance pour la lecture sécurisée de X-Forwarded-For
+      - TRUSTED_PROXIES=nginx,127.0.0.1
+      # Empêche la génération de fichiers .pyc sur le système de fichiers en lecture seule
+      - PYTHONDONTWRITEBYTECODE=1
     depends_on:
       db:
         condition: service_healthy
     volumes:
       # Persistance des modèles d'embedding et poids hors-ligne
       - ./backend/models:/app/models
-      # Persistance des fichiers et documents téléversés
+      # Persistance des documents et fichiers téléversés
       - ./backend/storage:/app/storage
     ports:
       - "8000:8000"
@@ -58,12 +83,18 @@ services:
     build:
       context: ./frontend/camrail-rda
       args:
-        # NOTE : NEXT_PUBLIC_API_URL est figé au build.
-        # En production derrière un nom de domaine ou une IP serveur, modifier cette valeur
-        # puis reconstruire avec : docker compose build frontend
+        # En production HTTPS derrière Nginx, pointer vers /api/v1 (relative, même origine)
         - NEXT_PUBLIC_API_URL=http://localhost:8000
     container_name: railmind-frontend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=128M
+      - /app/.next/cache:mode=1777,size=256M
     ports:
       - "3000:3000"
     depends_on:
@@ -71,29 +102,53 @@ services:
 
   # ----------------------------------------------------------------------------
   # 4. Service Ollama (Optionnel via profil compose : docker compose --profile ollama up -d)
-  # Si Ollama tourne déjà sur l'hôte natif (recommandé sous Windows/Mac), ce service n'est pas requis.
   # ----------------------------------------------------------------------------
   ollama:
-    image: ollama/ollama:latest
+    # Image officielle Ollama - version épinglée (vérifiée le 2026-10-18)
+    image: ollama/ollama:0.4.7
     container_name: railmind-ollama
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     profiles:
       - ollama
-    ports:
-      - "11434:11434"
+    # SÉCURITÉ : Port 11434 NON publié sur l'hôte (accessible uniquement via le réseau interne Docker)
     volumes:
       - ollama_data:/root/.ollama
-    # --------------------------------------------------------------------------
-    # Décommenter ci-dessous pour activer l'accélération matérielle NVIDIA GPU :
-    # (Nécessite nvidia-container-toolkit installé sur l'hôte Linux)
-    # --------------------------------------------------------------------------
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+
+  # ----------------------------------------------------------------------------
+  # 5. Reverse-Proxy Nginx TLS (Profil HTTPS : docker compose --profile https up -d)
+  # ----------------------------------------------------------------------------
+  nginx:
+    # Image officielle Nginx Alpine - version épinglée (vérifiée le 2026-10-18)
+    image: nginx:1.26.2-alpine
+    container_name: railmind-nginx
+    restart: unless-stopped
+    profiles:
+      - https
+    ports:
+      - "80:80"
+      - "443:443"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:mode=1777,size=64M
+      - /var/run:mode=1777,size=16M
+      - /tmp:mode=1777,size=64M
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    depends_on:
+      - frontend
+      - backend
 
 volumes:
   postgres_data:

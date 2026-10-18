@@ -1,3 +1,21 @@
+/**
+ * SÉCURITÉ DE STOCKAGE DES JETONS (Risque Résiduel XSS vs CSRF) :
+ * 
+ * 1. Refresh Token (Persistance de Session) :
+ *    - Stocké EXCLUSIVEMENT dans un cookie httpOnly, SameSite=Strict, Secure (en production).
+ *    - Inaccessible au JavaScript client : immunisé contre le vol par faille XSS.
+ *    - Protection CSRF : SameSite=Strict empêche l'envoi du cookie lors de requêtes cross-site.
+ * 
+ * 2. Access Token (Autorisation API éphémère - 30 minutes) :
+ *    - Conservé en priorité en mémoire vive (variable `inMemoryToken`) pour une immunité accrue.
+ *    - Miroir en `sessionStorage` pour assurer la persistance lors d'un rechargement (F5) au sein d'un même onglet.
+ *    - Risque résiduel documenté : Le stockage en `sessionStorage` reste exposé à une exécution de code malveillant
+ *      en cas de faille XSS critique. Cependant :
+ *        a) Sa portée est circonscrite à l'onglet actif et sa durée de vie est limitée à 30 minutes.
+ *        b) L'absence de refresh token dans le DOM empêche un attaquant XSS de pérenniser son accès au-delà de 30 minutes.
+ *        c) Le format Bearer Authorization header élimine le risque d'attaque CSRF sur les opérations de l'API.
+ */
+
 export type AuthSession = {
   token?: string;
   role: string;
@@ -5,16 +23,9 @@ export type AuthSession = {
 };
 
 const SESSION_KEY = "camrail_session";
-// NOTE: Storing JWTs in JavaScript-accessible storage (localStorage) is
-// vulnerable to XSS. Prefer httpOnly secure cookies set by the backend.
-// As an intermediate mitigation we use `sessionStorage` (lifetime tied to
-// the browser tab) instead of `localStorage` to reduce persistence.
-// NOTE: Storing JWTs in JavaScript-accessible storage is vulnerable to XSS.
-// Prefer httpOnly secure cookies set by the backend. Here we keep the access
-// token only in memory and persist only non-sensitive session info to
-// `sessionStorage` (tab-lifetime). The app will attempt a refresh via
-// `/auth/refresh` when needed.
 let inMemoryToken: string | null = null;
+let refreshPromise: Promise<AuthSession | null> | null = null;
+let preventiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 function storageAvailable(): boolean {
   return typeof window !== "undefined" && !!window.sessionStorage;
@@ -25,9 +36,6 @@ export function saveSession(session: AuthSession): void {
 
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    if (session.token && typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem("token", session.token);
-    }
   } catch {
     // best-effort: swallow storage errors
   }
@@ -38,22 +46,49 @@ export function getSession(): AuthSession | null {
 
   try {
     const storedSession = sessionStorage.getItem(SESSION_KEY);
-
     if (!storedSession) return null;
-
     return JSON.parse(storedSession) as AuthSession;
   } catch {
     return null;
   }
 }
 
+export function setAccessToken(token: string | null): void {
+  inMemoryToken = token;
+  const current = getSession();
+  if (current) {
+    current.token = token || undefined;
+    saveSession(current);
+  }
+}
+
+export function getAccessToken(): string | null {
+  if (inMemoryToken) return inMemoryToken;
+  const session = getSession();
+  if (session?.token) {
+    inMemoryToken = session.token;
+    return session.token;
+  }
+  return null;
+}
+
 export function clearSession(): void {
   inMemoryToken = null;
+  if (preventiveRefreshTimer) {
+    clearTimeout(preventiveRefreshTimer);
+    preventiveRefreshTimer = null;
+  }
 
   if (typeof window !== "undefined") {
     try {
       if (window.sessionStorage) {
         sessionStorage.removeItem(SESSION_KEY);
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const key = sessionStorage.key(i);
+          if (key && key.startsWith("evidence:")) {
+            sessionStorage.removeItem(key);
+          }
+        }
       }
       if (window.localStorage) {
         window.localStorage.removeItem("token");
@@ -70,61 +105,102 @@ export function clearSession(): void {
   }
 }
 
-export function setAccessToken(token: string | null) {
-  inMemoryToken = token;
-  if (typeof window !== "undefined" && window.localStorage) {
-    if (token) {
-      window.localStorage.setItem("token", token);
-    } else {
-      window.localStorage.removeItem("token");
-    }
+/**
+ * Planifie un rafraîchissement silencieux préventif 1 minute avant l'expiration du token d'accès
+ */
+export function schedulePreventiveRefresh(token: string): void {
+  if (typeof window === "undefined") return;
+  if (preventiveRefreshTimer) {
+    clearTimeout(preventiveRefreshTimer);
+    preventiveRefreshTimer = null;
   }
-}
-
-export function getAccessToken(): string | null {
-  const session = getSession();
-  if (session?.token) return session.token;
-  if (inMemoryToken) return inMemoryToken;
-  if (typeof window !== "undefined" && window.localStorage) {
-    return window.localStorage.getItem("token");
-  }
-  return null;
-}
-
-export async function refreshAccessToken(): Promise<AuthSession | null> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  if (!apiUrl) return null;
 
   try {
-    const resp = await fetch(`${apiUrl}/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const parts = token.split(".");
+    if (parts.length !== 3) return;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const payload = JSON.parse(jsonPayload);
+    if (!payload.exp) return;
 
-    if (!resp.ok) return null;
+    const expiresAtMs = payload.exp * 1000;
+    const nowMs = Date.now();
+    // Déclenchement 1 minute (60 000 ms) avant expiration
+    const refreshInMs = expiresAtMs - nowMs - 60000;
 
-    const data = await resp.json();
-
-    if (data.access_token) {
-      setAccessToken(data.access_token);
+    if (refreshInMs > 0) {
+      preventiveRefreshTimer = setTimeout(() => {
+        refreshAccessToken().catch(() => {});
+      }, refreshInMs);
+    } else if (expiresAtMs > nowMs) {
+      // Déjà à moins d'une minute de l'expiration : refresh immédiat sous 1s
+      preventiveRefreshTimer = setTimeout(() => {
+        refreshAccessToken().catch(() => {});
+      }, 1000);
     }
-
-    const session: AuthSession = {
-      token: undefined,
-      role: data.role || "",
-      email: data.email || "",
-    };
-
-    saveSession(session);
-
-    return session;
   } catch {
-    return null;
+    // ignore parse errors
   }
+}
+
+/**
+ * Rafraîchissement avec promesse partagée (Single-flight mutex) :
+ * Si plusieurs requêtes 401 surviennent simultanément, une seule requête /auth/refresh
+ * est exécutée et le résultat est partagé par tous les appelants.
+ */
+export async function refreshAccessToken(): Promise<AuthSession | null> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl) return null;
+
+    try {
+      const resp = await fetch(`${apiUrl}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!resp.ok) {
+        clearSession();
+        return null;
+      }
+
+      const data = await resp.json();
+
+      if (data.access_token) {
+        setAccessToken(data.access_token);
+        schedulePreventiveRefresh(data.access_token);
+      }
+
+      const session: AuthSession = {
+        token: data.access_token,
+        role: data.role || "",
+        email: data.email || "",
+      };
+
+      saveSession(session);
+      return session;
+    } catch {
+      clearSession();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 export async function login(
@@ -138,11 +214,12 @@ export async function login(
   }
 
   const body = new URLSearchParams();
-  body.set("username", username);
+  body.set("username", username.trim());
   body.set("password", password);
 
   const response = await fetch(`${apiUrl}/auth/login`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
@@ -150,11 +227,13 @@ export async function login(
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error("Email ou mot de passe incorrect");
-    }
-
     const errorBody = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      throw new Error(errorBody.detail || "Email ou mot de passe incorrect.");
+    }
+    if (response.status === 429) {
+      throw new Error(errorBody.detail || "Trop de tentatives, réessayez plus tard.");
+    }
 
     throw new Error(
       errorBody.detail || "Erreur lors de la connexion.",
@@ -170,8 +249,39 @@ export async function login(
   };
 
   saveSession(session);
+  setAccessToken(data.access_token);
+  schedulePreventiveRefresh(data.access_token);
 
   return session;
+}
+
+export async function logout(): Promise<void> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const token = getAccessToken();
+
+  if (preventiveRefreshTimer) {
+    clearTimeout(preventiveRefreshTimer);
+    preventiveRefreshTimer = null;
+  }
+
+  if (apiUrl) {
+    try {
+      await fetch(`${apiUrl}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch {
+      // Ignorer les erreurs réseau éventuelles lors de la déconnexion
+    }
+  }
+
+  clearSession();
+  if (typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
 }
 
 /**
@@ -187,4 +297,4 @@ export function getUserFirstName(email?: string | null): string {
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join("-");
-}
+}

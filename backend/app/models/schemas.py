@@ -74,8 +74,9 @@ class User(Base):
 
     # Relationships
     uploaded_documents = relationship("Document", back_populates="uploader")
-    audit_events = relationship("AuditEvent", back_populates="actor")
+    audit_events = relationship("AuditLog", back_populates="actor")
     security_groups = relationship("SecurityGroup", secondary=user_security_groups, back_populates="users")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -286,17 +287,66 @@ class Rule(Base):
     source_document = relationship("Document", back_populates="referenced_rules")
 
 
-class AuditEvent(Base):
-    __tablename__ = "audit_events"
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    seq = Column(Integer, unique=True, index=True, nullable=False)
     actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_email = Column(String(255), nullable=True)
     action = Column(String(255), nullable=False)  # login, upload_document, search, etc.
     entity_type = Column(String(100), nullable=True)  # document, user, etc.
     entity_id = Column(String(100), nullable=True)
     details_json = Column(Text, nullable=True)  # JSON-serialized details
-    created_at = Column(DateTime, server_default=func.now())
+    ip = Column(String(100), nullable=True)
+    prev_hash = Column(String(64), nullable=False)
+    entry_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     # Relationships
     actor = relationship("User", back_populates="audit_events")
+
+    @property
+    def user_id(self):
+        return self.actor_user_id
+
+
+# Alias pour rétrocompatibilité
+AuditEvent = AuditLog
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+    replaced_by = Column(String(64), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    ip = Column(String(100), nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="refresh_tokens")
+
+
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    jti = Column(String(64), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email_lower = Column(String(255), index=True, nullable=False)
+    ip = Column(String(100), index=True, nullable=False)
+    attempted_at = Column(DateTime, server_default=func.now(), index=True)
+    success = Column(Boolean, default=False, nullable=False)
 

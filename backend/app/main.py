@@ -8,7 +8,7 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -34,6 +34,30 @@ app = FastAPI(
     version="1.0",
     lifespan=lifespan
 )
+
+# Middleware de durcissement des en-têtes HTTP de sécurité
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=()"
+
+    if getattr(settings, "ENABLE_HSTS", False):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Cache-Control: no-store sur les réponses authentifiées
+    is_authenticated = bool(
+        request.headers.get("authorization")
+        or request.cookies.get("access_token")
+        or request.cookies.get("refresh_token")
+        or getattr(request.state, "user", None)
+    )
+    if is_authenticated:
+        response.headers["Cache-Control"] = "no-store"
+
+    return response
 
 # CORS configuration to connect the frontend easily
 app.add_middleware(
@@ -66,10 +90,36 @@ def startup_event():
     import logging
     logger = logging.getLogger("railmind")
 
-    # Seed initial users and groups if they don't exist
     db = SessionLocal()
     try:
         seed_database(db)
+
+        # En production : désactiver impérativement les comptes de démonstration avec mots de passe par défaut
+        if getattr(settings, "APP_ENV", "development") == "production":
+            from app.security import verify_password
+            from app.services.audit import log_audit_event
+            demo_credentials = [
+                ("admin@camrail.net", "adminpassword"),
+                ("docadmin@camrail.net", "docadminpassword"),
+                ("readonly@camrail.net", "readonlypassword"),
+            ]
+            for email, default_pwd in demo_credentials:
+                demo_user = db.query(schemas.User).filter(schemas.User.email == email).first()
+                if demo_user and verify_password(default_pwd, demo_user.password_hash):
+                    if demo_user.is_active:
+                        demo_user.is_active = False
+                        db.commit()
+                        logger.critical(
+                            f"ALERTE CRITIQUE [demo_account_disabled] : Le compte de démonstration {email} utilisait encore son mot de passe par défaut en production. Il a été désactivé immédiatement."
+                        )
+                        log_audit_event(
+                            db=db,
+                            actor_user_id=None,
+                            action="demo_account_disabled",
+                            entity_type="user",
+                            entity_id=str(demo_user.id),
+                            details={"email": email, "reason": "default_password_in_production"}
+                        )
     finally:
         db.close()
 

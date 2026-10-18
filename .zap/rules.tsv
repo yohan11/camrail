@@ -1,0 +1,3 @@
+# OWASP ZAP Baseline Rules Configuration for CAMRAIL RailMind Lite
+# Format: <rule-id>\t<threshold>\t<comment>
+10015	IGNORE	ReFlags

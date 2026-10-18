@@ -21,6 +21,14 @@ export default function LoginPage() {
   function mapErrorMessage(rawErr: string): string {
     const lower = rawErr.toLowerCase();
     if (
+      lower.includes("trop de tentatives") ||
+      lower.includes("too many requests") ||
+      lower.includes("429") ||
+      lower.includes("réessayez dans")
+    ) {
+      return rawErr;
+    }
+    if (
       lower.includes("credential") ||
       lower.includes("incorrect") ||
       lower.includes("invalid") ||
@@ -140,7 +148,7 @@ export default function LoginPage() {
           {ssoEnabled && (
             <div className="mb-4">
               <a
-                href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/auth/login/microsoft`}
+                href={`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/+$/, "")}/auth/login/microsoft`}
                 className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:border-slate-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-camrail-red"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" className="h-4 w-4">

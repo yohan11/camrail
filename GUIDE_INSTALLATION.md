@@ -121,10 +121,15 @@ sudo apt install -y postgresql-16-pgvector
 # Démarrage du service
 sudo systemctl enable --now postgresql
 
-# Création de la base et de l'utilisateur
-sudo -u postgres psql -c "CREATE USER camrail_user WITH PASSWORD 'camrail_secure_password';"
-sudo -u postgres psql -c "CREATE DATABASE camrail_rda OWNER camrail_user;"
-sudo -u postgres psql -d camrail_rda -c "CREATE EXTENSION IF NOT EXISTS vector;"
+# Création sécurisée de la base, de l'extension et du rôle applicatif restreint :
+# Vous pouvez exécuter directement le script durci fourni :
+sudo -u postgres psql -f deploy/postgres/init.sql
+
+# Ou manuellement en ligne de commande :
+sudo -u postgres psql -c "CREATE EXTENSION IF NOT EXISTS vector;"
+sudo -u postgres psql -c "CREATE ROLE railmind_app WITH LOGIN PASSWORD 'railmind_app_pass' NOSUPERUSER NOCREATEDB NOCREATEROLE;"
+sudo -u postgres psql -c "ALTER DATABASE railmind OWNER TO railmind_app;"
+sudo -u postgres psql -d railmind -c "ALTER SCHEMA public OWNER TO railmind_app;"
 ```
 
 #### 🪟 Windows :
@@ -133,11 +138,17 @@ sudo -u postgres psql -d camrail_rda -c "CREATE EXTENSION IF NOT EXISTS vector;"
 3. Copiez :
    - `vector.dll` dans `C:\Program Files\PostgreSQL\16\lib\`
    - `vector.control` et `vector--*.sql` dans `C:\Program Files\PostgreSQL\16\share\extension\`
-4. Dans `psql` (ou pgAdmin) :
+4. Dans `psql` (ou pgAdmin) connecté en super-utilisateur `postgres` :
 ```sql
-CREATE DATABASE camrail_rda;
-\c camrail_rda;
+CREATE DATABASE railmind;
+\c railmind;
+-- Exécution du script de durcissement (ou contenu de deploy/postgres/init.sql) :
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE ROLE railmind_app WITH LOGIN PASSWORD 'railmind_app_pass' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+ALTER DATABASE railmind OWNER TO railmind_app;
+ALTER SCHEMA public OWNER TO railmind_app;
+GRANT ALL PRIVILEGES ON DATABASE railmind TO railmind_app;
+GRANT ALL ON SCHEMA public TO railmind_app;
 ```
 
 ---
@@ -367,23 +378,37 @@ cd <racine_projet>\backend
 alembic upgrade head
 ```
 
-### 2. Injecter les données de démonstration et comptes utilisateurs initiaux :
+### 2. Initialisation des comptes utilisateurs :
 
-#### 🐧 Linux :
+#### 🔒 En Production (`APP_ENV=production`) :
+> ⚠️ **RÈGLE CRITIQUE DE SÉCURITÉ :** Les comptes de démonstration ne doivent **JAMAIS** être utilisés en production.
+> - Le script `seed_demo.py` refuse catégoriquement de s'exécuter en production (`APP_ENV=production`).
+> - Au démarrage, l'application vérifie si des comptes de démonstration par défaut existent et les désactive immédiatement (`demo_account_disabled`).
+>
+> Pour créer le premier compte administrateur en production avec saisie masquée (`getpass`) et validation de robustesse (>= 12 caractères, rejet des mots de passe triviaux) :
+
+##### 🐧 Linux :
+```bash
+python scripts/create_admin.py
+```
+
+##### 🪟 Windows :
+```powershell
+python scripts\create_admin.py
+```
+
+#### 🧪 En Développement Uniquement (`APP_ENV=development`) :
+Pour injecter le jeu documentaire factice et les comptes de test locaux :
+
+##### 🐧 Linux :
 ```bash
 python seed_demo.py
 ```
 
-#### 🪟 Windows :
+##### 🪟 Windows :
 ```powershell
 python seed_demo.py
 ```
-
-Cette commande initialise :
-- **Compte Super-Administrateur :** `admin@camrail.net` / `AdminCamrail2026!`
-- **Compte Gestionnaire Documentaire :** `doc.admin@camrail.net` / `DocAdmin2026!`
-- **Compte Agent d'Exploitation :** `agent.exploitation@camrail.net` / `Agent2026!`
-- **5 documents techniques ferroviaires de référence** indexés avec leurs extraits vectoriels.
 
 ---
 
@@ -469,22 +494,90 @@ npm run start -- -p 3000
 
 ---
 
-## 10. Étape 8 : Déploiement Conteneurisé Clé en Main (Docker Compose)
+## 10. Étape 8 : Déploiement Conteneurisé Clé en Main & Durcissement (Docker Compose)
 
-Si votre serveur CAMRAIL dispose de **Docker** et **Docker Compose**, le déploiement est entièrement automatisable :
+RailMind Lite intègre une infrastructure conteneurisée hautement durcie respectant les standards de sécurité industrielle ferroviaire :
+- **Images strictement épinglées** : Chaque image utilise une version immuable vérifiée (`pgvector:0.7.4-pg16`, `ollama:0.4.7`, `nginx:1.26.2-alpine`, `python:3.12.7-slim`, `node:20.18.0-alpine`).
+- **Moindre privilège** : Conteneurs exécutés sous utilisateur non-root (`USER app` UID 1001), `cap_drop: ALL`, `no-new-privileges: true`, et système de fichiers racine en lecture seule (`read_only: true`).
+- **Cloisonnement réseau** : Les ports de PostgreSQL (5432) et d'Ollama (11434) ne sont **plus publiés sur l'hôte**, limitant leur exposition au strict réseau virtuel interne Docker.
+- **Rôle DB applicatif restreint** : L'application se connecte avec le rôle `railmind_app` (défini dans `deploy/postgres/init.sql`) sans aucun privilège de super-utilisateur.
 
+### A. Démarrage Standard (HTTP Interne)
 ```bash
 cd <racine_projet>
 
-# 1. Copier les variables d'environnement
+# 1. Copier et adapter les variables d'environnement
 cp env.example .env
 
-# 2. Construire et lancer l'ensemble des conteneurs
+# 2. Construire et lancer les services essentiels
 docker compose up -d --build
 
-# 3. Vérifier l'état des conteneurs (db, backend, frontend)
+# 3. Vérifier l'état de santé des services
 docker compose ps
 ```
+
+---
+
+### B. Déploiement Haute Sécurité HTTPS avec Reverse-Proxy Nginx
+
+Le profil Compose `https` active un reverse-proxy Nginx frontal assurant :
+- La terminaison TLS 1.2 / TLS 1.3 avec suites cryptographiques modernes et HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains`).
+- La redirection automatique de tout le trafic HTTP (port 80) vers HTTPS (port 443).
+- Le routage de même origine (Frontend sur `/`, API sur `/api/`), éliminant tout besoin de CORS.
+- La transmission en temps réel token par token du LLM (`proxy_buffering off` et `proxy_read_timeout 300s` sur la route de streaming).
+
+#### 1. Préparation des Certificats SSL/TLS
+
+##### Option A : Environnement de Test ou Développement (Certificat Auto-Signé)
+Générez un certificat auto-signé valide pour `localhost` et `railmind.camrail.net` :
+- **Sous Linux (Bash) :**
+  ```bash
+  bash scripts/make_selfsigned_cert.sh
+  ```
+- **Sous Windows (PowerShell) :**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\make_selfsigned_cert.ps1
+  ```
+Ces scripts génèrent `deploy/certs/privkey.pem` et `deploy/certs/fullchain.pem` (répertoire automatiquement exclu de git via `.gitignore`).
+
+##### Option B : Production Ferroviaire CAMRAIL (Autorité de Certification Interne PKI / AD CS)
+Pour déployer en production sans avertissement de sécurité sur les navigateurs des postes de travail :
+1. Faites émettre un certificat serveur auprès de la **Direction des Systèmes d'Information (DSI) de CAMRAIL** ou de l'autorité racine Active Directory Certificate Services (AD CS).
+2. Déposez la clé privée serveur au format PEM dans :  
+   `deploy/certs/privkey.pem` (définissez les droits stricts : `chmod 600`).
+3. Concaténez le certificat du serveur, les certificats intermédiaires et le certificat racine CAMRAIL dans :  
+   `deploy/certs/fullchain.pem`.
+4. Assurez-vous que l'autorité racine CAMRAIL est déployée via GPO dans le magasin *"Autorités de certification racines de confiance"* des postes clients.
+
+#### 2. Configuration du Frontend pour l'Origine Relative
+En mode HTTPS frontal, configurez le frontend pour utiliser l'URL relative de même origine :
+```env
+# Dans frontend/camrail-rda/.env.local (ou build arg Docker) :
+NEXT_PUBLIC_API_URL=/api/v1
+```
+
+#### 3. Lancement du Profil HTTPS
+```bash
+# Lancement combiné avec le profil Nginx
+docker compose --profile https up -d --build
+```
+L'application est alors accessible de façon totalement sécurisée sur **https://railmind.camrail.net** ou **https://<ip_serveur>**.
+
+---
+
+### C. Confidentialité & Gestion de la Dictée Vocale (Microphone)
+
+Pour garantir une étanchéité absolue des données ferroviaires, **la dictée vocale dans l'assistant est DÉSACTIVÉE PAR DÉFAUT**.
+
+> ⚠️ **Avertissement de Sécurité :** L'API `webkitSpeechRecognition` intégrée aux navigateurs (Google Chrome, Microsoft Edge) transmet les flux audio captés par le microphone vers les serveurs cloud de tiers (Google ou Microsoft) pour transcription vocale. Sur un réseau isolé ou pour des informations confidentielles d'exploitation, ce flux externe constitue un risque de fuite de données.
+
+Si la politique de sécurité informatique de CAMRAIL autorise cette fonctionnalité sur votre poste :
+1. Ouvrez `frontend/camrail-rda/.env.local`.
+2. Définissez la variable suivante :
+   ```env
+   NEXT_PUBLIC_VOICE_INPUT_ENABLED=true
+   ```
+3. Redémarrez le frontend (`npm run dev` ou rebuild Docker). L'icône de microphone apparaîtra alors à droite de la barre de saisie.
 
 ---
 

@@ -1,0 +1,4 @@
+[bandit]
+exclude_dirs = ["/tests", "/venv", "/.pytest_cache"]
+targets = ["app"]
+skips = []

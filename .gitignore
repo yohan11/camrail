@@ -35,6 +35,10 @@ out/
 !*.env.example
 !*.env.local.example
 !backend/env.example
+deploy/certs/
+*.pem
+*.key
+*.crt
 
 # Uploads & Media
 backend/uploads/

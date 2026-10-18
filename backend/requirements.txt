@@ -27,7 +27,7 @@ idna==3.18
 Jinja2==3.1.6
 joblib==1.5.3
 lxml==6.1.1
-Mako==1.4.1
+Mako==1.4.3
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
@@ -47,8 +47,8 @@ pydantic==2.13.4
 pydantic-settings==2.15.0
 pydantic_core==2.46.4
 Pygments==2.20.0
-PyJWT==2.13.0
-pypdf==6.15.0
+PyJWT==2.15.1
+pypdf==6.21.1
 pypdfium2==5.12.1
 pytesseract==0.3.13
 python-docx==1.2.0
@@ -75,7 +75,7 @@ typer==0.27.1
 typing-inspection==0.4.2
 typing_extensions==4.16.0
 uvicorn==0.52.1
-authlib
-itsdangerous
-ollama
-pytz
+authlib==1.8.0
+itsdangerous==2.2.0
+ollama==0.6.3
+pytz==2026.5

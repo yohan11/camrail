@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Dépendances Python (Backend)
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # Dépendances Node.js (Frontend)
+  - package-ecosystem: "npm"
+    directory: "/frontend/camrail-rda"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # Conteneurs Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Actions GitHub CI/CD
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

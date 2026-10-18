@@ -57,6 +57,31 @@ export default function DashboardPage() {
   const [queriesData, setQueriesData] = useState<QueryDetail[]>([]);
   const [auditData, setAuditData] = useState<AuditDetail[]>([]);
 
+  const [auditStatus, setAuditStatus] = useState<{
+    ok: boolean;
+    verified_count: number;
+    first_broken_seq: number | null;
+    message: string;
+  } | null>(null);
+  const [verifyingAudit, setVerifyingAudit] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  async function handleVerifyAudit(e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    try {
+      setVerifyingAudit(true);
+      const data = await apiFetch("/dashboard/audit/verify");
+      setAuditStatus(data as any);
+      // Recharger les événements d'audit car un événement 'audit_verified' vient d'être écrit
+      const updatedAudit = await apiFetch("/dashboard/details/audit");
+      setAuditData(Array.isArray(updatedAudit) ? (updatedAudit as AuditDetail[]) : []);
+    } catch (err) {
+      console.error("Erreur lors de la vérification de l'audit:", err);
+    } finally {
+      setVerifyingAudit(false);
+    }
+  }
+
   async function fetchQueries() {
     setShowQueriesModal(true);
     setModalLoading(true);
@@ -109,6 +134,7 @@ export default function DashboardPage() {
 
     if (typeof window !== "undefined") {
       const session = getSession();
+      setIsAdmin(session?.role === "admin");
       if (session && session.role === "read_only") {
         window.location.href = "/assistant";
         return;
@@ -418,6 +444,42 @@ export default function DashboardPage() {
                       ? "Traçabilité intégrale et immuable en base souveraine"
                       : "Full and immutable traceability in sovereign database"}
                   </p>
+
+                  <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 relative z-10">
+                    {auditStatus ? (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        auditStatus.ok ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-red-500/20 text-red-300 border border-red-500/30"
+                      }`}>
+                        <span className={`h-2 w-2 rounded-full ${auditStatus.ok ? "bg-emerald-400" : "bg-red-400 animate-ping"}`} />
+                        {auditStatus.message}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {language === "fr" ? "Chaîne HMAC-SHA256 active" : "HMAC-SHA256 chain active"}
+                      </span>
+                    )}
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={handleVerifyAudit}
+                        disabled={verifyingAudit}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white/15 hover:bg-white/25 transition-all text-white border border-white/20 disabled:opacity-50"
+                      >
+                        {verifyingAudit ? (
+                          <>
+                            <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                            {language === "fr" ? "Vérification..." : "Verifying..."}
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            {language === "fr" ? "Vérifier l'intégrité" : "Verify chain"}
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -526,7 +588,52 @@ export default function DashboardPage() {
               {language === "fr" ? "Aucun événement d'audit récent." : "No recent audit events."}
             </div>
           ) : (
-            <div className="max-h-[60vh] overflow-y-auto border border-slate-200 rounded-xl">
+            <div>
+              <div className="mb-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${auditStatus && !auditStatus.ok ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        {language === "fr" ? "Intégrité cryptographique" : "Cryptographic Integrity"}
+                      </p>
+                      {auditStatus && (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${auditStatus.ok ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                          {auditStatus.ok ? (language === "fr" ? "Vérifiée" : "Verified") : (language === "fr" ? "Altérée" : "Tampered")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 mt-0.5">
+                      {auditStatus ? auditStatus.message : (language === "fr" ? "Intégrité du journal : chaîne HMAC-SHA256 active" : "Audit log integrity: HMAC-SHA256 chain active")}
+                    </p>
+                  </div>
+                </div>
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleVerifyAudit}
+                    disabled={verifyingAudit}
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition-colors shrink-0 disabled:opacity-50"
+                  >
+                    {verifyingAudit ? (
+                      <>
+                        <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        {language === "fr" ? "Vérification..." : "Verifying..."}
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        {language === "fr" ? "Vérifier la chaîne" : "Verify chain"}
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-[50vh] overflow-y-auto border border-slate-200 rounded-xl">
               <table className="table-fixed w-full divide-y divide-slate-200 text-left">
                 <thead className="sticky top-0 bg-slate-100 z-10 shadow-2xs">
                   <tr>
@@ -574,6 +681,7 @@ export default function DashboardPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
             </div>
           )}
         </Modal>

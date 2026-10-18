@@ -43,15 +43,91 @@ export const AUDIT_ACTION_LABELS: Record<string, Record<Language, string>> = {
     fr: "Échec de connexion",
     en: "Login failed",
   },
+  login_failure: {
+    fr: "Échec de connexion",
+    en: "Login failure",
+  },
+  account_locked: {
+    fr: "Compte verrouillé",
+    en: "Account locked",
+  },
+  account_unlocked: {
+    fr: "Compte déverrouillé",
+    en: "Account unlocked",
+  },
   logout: {
     fr: "Déconnexion",
     en: "Logout",
+  },
+  refresh_reuse_detected: {
+    fr: "Réutilisation de jeton détectée",
+    en: "Token reuse detected",
+  },
+  access_denied: {
+    fr: "Accès refusé",
+    en: "Access denied",
+  },
+  document_view: {
+    fr: "Consultation de document",
+    en: "Document viewed",
+  },
+  document_file_download: {
+    fr: "Téléchargement de fichier",
+    en: "File downloaded",
+  },
+  upload_rejected: {
+    fr: "Téléversement rejeté",
+    en: "Upload rejected",
+  },
+  response_sanitized: {
+    fr: "Réponse assainie",
+    en: "Response sanitized",
+  },
+  demo_account_disabled: {
+    fr: "Compte démo désactivé",
+    en: "Demo account disabled",
+  },
+  user_created: {
+    fr: "Création d'utilisateur",
+    en: "User created",
+  },
+  user_role_changed: {
+    fr: "Modification de rôle",
+    en: "Role changed",
+  },
+  user_groups_changed: {
+    fr: "Groupes utilisateur modifiés",
+    en: "User groups changed",
+  },
+  user_deactivated: {
+    fr: "Désactivation d'utilisateur",
+    en: "User deactivated",
+  },
+  user_updated: {
+    fr: "Mise à jour d'utilisateur",
+    en: "User updated",
+  },
+  document_status_changed: {
+    fr: "Statut documentaire modifié",
+    en: "Document status changed",
+  },
+  document_groups_changed: {
+    fr: "Groupes documentaire modifiés",
+    en: "Document groups changed",
+  },
+  audit_verified: {
+    fr: "Intégrité d'audit vérifiée",
+    en: "Audit integrity verified",
   },
   rda_query: {
     fr: "Recherche documentaire",
     en: "Document search",
   },
   document_upload: {
+    fr: "Ajout de document",
+    en: "Document upload",
+  },
+  upload_document: {
     fr: "Ajout de document",
     en: "Document upload",
   },
@@ -63,7 +139,15 @@ export const AUDIT_ACTION_LABELS: Record<string, Record<Language, string>> = {
     fr: "Activation de document",
     en: "Document activation",
   },
+  activate_document: {
+    fr: "Activation de document",
+    en: "Document activation",
+  },
   document_archive: {
+    fr: "Archivage de document",
+    en: "Document archiving",
+  },
+  archive_document: {
     fr: "Archivage de document",
     en: "Document archiving",
   },

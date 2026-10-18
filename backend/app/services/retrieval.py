@@ -213,7 +213,9 @@ def hybrid_search(
 
         excerpt = chunk.content or ""
 
-        is_full_doc = meta.get("is_full_document_citation", False)
+        is_full_doc = meta.get("is_full_document_citation")
+        if is_full_doc is None:
+            is_full_doc = True if (getattr(doc, "file_type", "") == "docx" or (doc.file_url and doc.file_url.lower().endswith(".docx"))) else False
         pagination_type = meta.get("pagination_type", "native")
         segments = meta.get("segments", [])
 

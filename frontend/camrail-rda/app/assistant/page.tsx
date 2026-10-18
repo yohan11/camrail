@@ -45,9 +45,9 @@ function AssistantContent() {
 
     if (typeof window !== "undefined") {
       try {
-        window.localStorage.setItem(`evidence:${cit.document_id}`, JSON.stringify(evidencePayload));
+        window.sessionStorage.setItem(`evidence:${cit.document_id}`, JSON.stringify(evidencePayload));
       } catch (e) {
-        console.error("Erreur lors de la sauvegarde de l'evidence dans localStorage:", e);
+        console.error("Erreur lors de la sauvegarde de l'evidence dans sessionStorage:", e);
       }
     }
 
@@ -95,6 +95,13 @@ function AssistantContent() {
   const pendingAbstentionRef = useRef<boolean>(false);
   const currentConversationIdRef = useRef<number | null>(null);
   const isQueryingRef = useRef<boolean>(false);
+  const finalSanitizedAnswerRef = useRef<string | null>(null);
+
+  // SÉCURITÉ & CONFIDENTIALITÉ FERROVIAIRE (Risque de fuite audio tiers) :
+  // L'API webkitSpeechRecognition transmet le flux audio à des serveurs cloud tiers
+  // (Google / Microsoft). Pour préserver l'étanchéité stricte et le fonctionnement 100% hors-ligne,
+  // la dictée vocale est DÉSACTIVÉE PAR DÉFAUT et n'est active que si NEXT_PUBLIC_VOICE_INPUT_ENABLED="true".
+  const isVoiceInputEnabled = process.env.NEXT_PUBLIC_VOICE_INPUT_ENABLED === "true";
 
   // Load user name and doc count
   useEffect(() => {
@@ -111,9 +118,9 @@ function AssistantContent() {
       .catch(() => {});
   }, []);
 
-  // Initialize Speech Recognition
+  // Initialize Speech Recognition (uniquement si explicitement activé via variable d'environnement)
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (isVoiceInputEnabled && typeof window !== "undefined") {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
@@ -281,6 +288,7 @@ function AssistantContent() {
           if (lastAsstIdx !== -1) {
             updated[lastAsstIdx] = {
               ...updated[lastAsstIdx],
+              content: finalSanitizedAnswerRef.current !== null ? finalSanitizedAnswerRef.current : updated[lastAsstIdx].content,
               citations: pendingCitationsRef.current,
               confidence: pendingConfidenceRef.current,
               abstention: pendingAbstentionRef.current,
@@ -473,20 +481,24 @@ function AssistantContent() {
     pendingCitationsRef.current = [];
     pendingConfidenceRef.current = undefined;
     pendingAbstentionRef.current = false;
+    finalSanitizedAnswerRef.current = null;
     setIsTyping(true);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     const token = getAccessToken() || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+    const streamEndpoint = rawApiUrl.endsWith("/api/v1")
+      ? `${rawApiUrl}/assistant/query/stream`
+      : `${rawApiUrl}/api/v1/assistant/query/stream`;
     const payload: any = { query: trimmedQuestion, language: language };
     if (conversationId) {
       payload.conversation_id = conversationId;
     }
 
     try {
-      const response = await fetch(`${apiUrl}/api/v1/assistant/query/stream`, {
+      const response = await fetch(streamEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -559,6 +571,9 @@ function AssistantContent() {
                 pendingConfidenceRef.current = data.confidence;
                 pendingAbstentionRef.current = data.confidence === "insufficient";
                 streamDoneRef.current = true;
+                if (typeof data.answer === "string") {
+                  finalSanitizedAnswerRef.current = data.answer;
+                }
                 startTypingLoop();
               } else if (currentEvent === "error") {
                 throw new Error(data.detail || "Erreur de génération");
@@ -595,6 +610,7 @@ function AssistantContent() {
           pendingConfidenceRef.current = standardData.confidence;
           pendingAbstentionRef.current = standardData.abstention || false;
           streamDoneRef.current = true;
+          finalSanitizedAnswerRef.current = standardData.answer || "";
           typingQueueRef.current = standardData.answer || "";
           startTypingLoop();
           return;
@@ -661,7 +677,9 @@ function AssistantContent() {
 
     return (
       <ReactMarkdown
+        disallowedElements={["img", "iframe", "script", "object", "embed", "video", "audio", "form", "input"]}
         components={{
+          img: () => null,
           a: ({ href, children }) => {
             if (href?.startsWith("#source-")) {
               const idxStr = href.replace("#source-", "");
@@ -688,7 +706,8 @@ function AssistantContent() {
                 </button>
               );
             }
-            return <a href={href} target="_blank" rel="noopener noreferrer" className="text-camrail-red underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red rounded">{children}</a>;
+            // Rendu en texte pur sécurisé pour tout autre lien éventuel
+            return <span className="text-slate-900 font-medium">{children}</span>;
           }
         }}
       >
@@ -738,7 +757,7 @@ function AssistantContent() {
                       className="group flex flex-col items-start p-4 border border-slate-200 rounded-xl text-left hover:border-camrail-red hover:shadow-sm transition-all cursor-pointer bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red"
                     >
                       <span className="text-[11px] font-bold text-camrail-red uppercase tracking-wider mb-1.5">
-                        {item.category}
+                        {typeof item.category === "object" ? item.category[language] || item.category.fr : item.category}
                       </span>
                       <span className="text-sm font-medium text-slate-800 group-hover:text-camrail-red transition-colors leading-snug">
                         {qText}
@@ -878,6 +897,11 @@ function AssistantContent() {
                                       <h4 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-camrail-red mb-2 flex items-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400 group-hover:text-camrail-red transition-colors"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                                         <span className="truncate">{cit.document_title}</span>
+                                        {language === "en" && (
+                                          <span className="text-[10px] text-slate-500 font-normal shrink-0 italic">
+                                            (FR doc)
+                                          </span>
+                                        )}
                                       </h4>
 
                                       {proofText && (
@@ -964,19 +988,21 @@ function AssistantContent() {
                 disabled={(loading && !isTyping) || isListening}
               />
               <div className="absolute right-2 bottom-2.5 flex items-center gap-1.5">
-                {/* Voice Input Button */}
-                <button
-                  type="button"
-                  onClick={toggleListening}
-                  title={isListening ? t("chat.stop") : t("chat.listen")}
-                  className={`rounded-xl p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red ${
-                    isListening 
-                      ? "text-white bg-red-500 animate-pulse" 
-                      : "text-slate-500 hover:text-camrail-red hover:bg-slate-100"
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                </button>
+                {/* Voice Input Button (Masqué par défaut - actif uniquement si NEXT_PUBLIC_VOICE_INPUT_ENABLED=true) */}
+                {isVoiceInputEnabled && (
+                  <button
+                    type="button"
+                    onClick={toggleListening}
+                    title={isListening ? t("chat.stop") : t("chat.listen")}
+                    className={`rounded-xl p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-camrail-red ${
+                      isListening 
+                        ? "text-white bg-red-500 animate-pulse" 
+                        : "text-slate-500 hover:text-camrail-red hover:bg-slate-100"
+                    }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                  </button>
+                )}
 
                 {/* Bouton Arrêter ou Bouton Envoyer */}
                 {loading || isTyping ? (

@@ -1,6 +1,9 @@
 export interface SuggestionItem {
   id: string;
-  category: string;
+  category: {
+    fr: string;
+    en: string;
+  } | string;
   question: {
     fr: string;
     en: string;
@@ -10,7 +13,10 @@ export interface SuggestionItem {
 export const SUGGESTED_QUESTIONS: SuggestionItem[] = [
   {
     id: "voie_ferree",
-    category: "Infrastructure",
+    category: {
+      fr: "Infrastructure",
+      en: "Railway Infrastructure",
+    },
     question: {
       fr: "De quoi est composée une voie ferrée classique ?",
       en: "What are the components of a standard railway track?",
@@ -18,7 +24,10 @@ export const SUGGESTED_QUESTIONS: SuggestionItem[] = [
   },
   {
     id: "signalisation",
-    category: "Signalisation",
+    category: {
+      fr: "Signalisation",
+      en: "Signaling",
+    },
     question: {
       fr: "Quel est le rôle premier de la signalisation ferroviaire ?",
       en: "What is the primary role of railway signaling?",
@@ -26,7 +35,10 @@ export const SUGGESTED_QUESTIONS: SuggestionItem[] = [
   },
   {
     id: "stabilite_trains",
-    category: "Sécurité & Voie",
+    category: {
+      fr: "Sécurité & Voie",
+      en: "Safety & Track",
+    },
     question: {
       fr: "Quels éléments assurent la stabilité des trains sur les rails ?",
       en: "Which components ensure train stability on the rails?",
@@ -34,7 +46,10 @@ export const SUGGESTED_QUESTIONS: SuggestionItem[] = [
   },
   {
     id: "grande_vitesse",
-    category: "Exploitation",
+    category: {
+      fr: "Exploitation",
+      en: "Operations",
+    },
     question: {
       fr: "À quelle vitesse un train est-il qualifié de grande vitesse ?",
       en: "At what speed is a train classified as high-speed?",

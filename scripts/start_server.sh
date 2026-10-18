@@ -40,5 +40,5 @@ echo "==========================================================================
 # Vérification préalable des modèles hors-ligne
 python ../scripts/prepare_models.py
 
-# Démarrage du serveur ASGI multi-workers
-exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers "$UVICORN_WORKERS"
+# Démarrage du serveur ASGI multi-workers avec support reverse-proxy / HTTPS
+exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers "$UVICORN_WORKERS" --proxy-headers --forwarded-allow-ips "${TRUSTED_PROXIES:-*}"

@@ -57,9 +57,18 @@ cp env.example .env
 pip install -r requirements.txt
 python ../scripts/prepare_models.py
 alembic upgrade head
-python seed_demo.py
+python seed_demo.py  # Uniquement en développement (interdit en production)
 uvicorn app.main:app --reload
 ```
+
+> **IMPORTANT - Sécurité & Initialisation en Production :**
+> Les comptes de démonstration (`admin@camrail.net`, etc.) sont **strictement réservés aux environnements de développement**. En production (`APP_ENV=production`) :
+> - `seed_demo.py` refuse de s'exécuter.
+> - Tout compte de démonstration configuré avec son mot de passe par défaut est automatiquement désactivé dès le démarrage (`demo_account_disabled`).
+> - Pour initialiser le premier compte administrateur en production avec saisie masquée et validation de force :
+>   ```bash
+>   python scripts/create_admin.py
+>   ```
 
 ### 2. Démarrer le Frontend
 Consultez le [**README du frontend**](frontend/camrail-rda/README.md) :
@@ -94,3 +103,12 @@ Pour repondre aux exigences de production (5 a 15 generations simultanees et ~10
 - **Sonde de Sante Publique :** Endpoint `GET /health` verifiant l'etat de la DB, d'Ollama et du modele d'embedding (200 / 503).
 - **Deploiement Multi-Workers :** Scripts `scripts/start_server.sh` et `scripts/start_server.bat` avec gestion de la RAM.
 - **Tests de Charge :** Suite Locust disponible dans `scripts/loadtest/` pour des scenarios a 10, 30 et 100 utilisateurs virtuels.
+
+---
+
+## Sécurité, Conformité et Modèle de Menaces
+
+Pour une présentation complète de l'architecture de sécurité, du modèle de menaces STRIDE, de la correspondance avec l'OWASP Top 10 (2021) et l'OWASP Top 10 for LLM Applications (2025), des 50 tests d'abus automatisés, des risques résiduels et des responsabilités de l'exploitant, veuillez consulter le document maître :
+
+👉 **[SECURITY.md](SECURITY.md)** — *Politique et Architecture de Sécurité de CAMRAIL RailMind Lite*
+

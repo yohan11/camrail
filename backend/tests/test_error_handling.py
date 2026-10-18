@@ -29,7 +29,7 @@ def test_error_handling():
         # Test 1: POST /auth/login with invalid email (should be 401)
         resp1 = client.post("/auth/login", data={"username": "fake@camrail.net", "password": "123"})
         assert resp1.status_code == 401
-        assert resp1.json()["detail"] == "Incorrect email or password"
+        assert resp1.json()["detail"] in ["Incorrect email or password", "Email ou mot de passe incorrect."]
         print("[TEST 1] Invalid login -> 401 Unauthorized (OK)")
         
         # Test 2: POST /auth/login with missing field (should be 422 Unprocessable Entity)

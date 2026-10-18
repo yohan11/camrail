@@ -79,7 +79,14 @@ def calculate_checksum(filepath):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
+import sys
+from app.config import settings
+
 def seed_demo():
+    if getattr(settings, "APP_ENV", "development") == "production":
+        print("ERREUR CRITIQUE : L'exécution de seed_demo.py est formellement interdite en environnement de production (APP_ENV=production).", file=sys.stderr)
+        sys.exit(1)
+
     print("=" * 60)
     print("       RAILMIND LITE - DEMO ENVIRONMENT RESET")
     print("=" * 60)

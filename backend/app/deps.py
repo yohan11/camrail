@@ -11,10 +11,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     if not token:
-        token = request.query_params.get("token")
-    if not token:
-        token = request.cookies.get("token") or request.cookies.get("access_token")
-    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -27,18 +23,34 @@ def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: 
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+            issuer="railmind",
+            audience="railmind-api"
+        )
+        if payload.get("type") != "access":
+            raise credentials_exception
+        jti = payload.get("jti")
+        if not jti:
+            raise credentials_exception
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
         
+    from app.models.schemas import RevokedToken
+    revoked = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+    if revoked:
+        raise credentials_exception
+
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user")
     return user
 
 class RoleChecker:

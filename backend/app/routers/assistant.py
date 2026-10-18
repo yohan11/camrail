@@ -25,7 +25,7 @@ from app.services.generation import (
 )
 from app.services.concurrency import concurrency_limiter, user_rate_limiter
 from app.services.audit import log_audit_event
-from app.security import get_effective_search_scope
+from app.security import get_effective_search_scope, ensure_conversation_access
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -60,9 +60,8 @@ def get_conversations(current_user=Depends(get_current_user), db: Session = Depe
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
 def get_conversation_messages(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Retrieve all messages for a specific conversation."""
-    conv = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == current_user.id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    ensure_conversation_access(current_user, conv, db, action="read_messages")
     
     messages = db.query(ConversationMessage).filter(ConversationMessage.conversation_id == conversation_id).order_by(ConversationMessage.created_at.asc()).all()
     
@@ -88,9 +87,8 @@ def get_conversation_messages(conversation_id: int, current_user=Depends(get_cur
 @router.delete("/conversations/{conversation_id}")
 def delete_conversation(conversation_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete a conversation."""
-    conv = db.query(Conversation).filter(Conversation.id == conversation_id, Conversation.user_id == current_user.id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    ensure_conversation_access(current_user, conv, db, action="delete_conversation")
     db.delete(conv)
     db.commit()
     return {"status": "deleted"}
@@ -145,9 +143,8 @@ def assistant_query(
             db.refresh(conv)
             conv_id = conv.id
         else:
-            conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
-            if not conv:
-                raise HTTPException(status_code=404, detail="Conversation not found")
+            conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+            ensure_conversation_access(current_user, conv, db, action="add_message")
 
         user_msg = ConversationMessage(
             conversation_id=conv_id,
@@ -167,6 +164,10 @@ def assistant_query(
             language=payload.language
         )
     duration_ms = int((time.perf_counter() - start_time) * 1000)
+
+    from app.services.output_filter import sanitize_answer
+    raw_answer = gen_result.get("answer", "")
+    clean_answer, removed_elements = sanitize_answer(raw_answer)
 
     citations = [CitationItem(**c) for c in gen_result.get("citations", [])]
     provider = gen_result.get("provider")
@@ -189,13 +190,26 @@ def assistant_query(
         asst_msg = ConversationMessage(
             conversation_id=conv_id,
             role="assistant",
-            content=gen_result.get("answer", ""),
+            content=clean_answer,
             confidence=gen_result.get("confidence"),
             citations=json.dumps([c.model_dump() for c in citations]) if citations else None
         )
         db_write.add(asst_msg)
         db_write.query(Conversation).filter(Conversation.id == conv_id).update({"updated_at": func.now()})
         db_write.commit()
+
+        if removed_elements > 0:
+            log_audit_event(
+                db=db_write,
+                actor_user_id=current_user.id,
+                action="response_sanitized",
+                entity_type="rda_query",
+                entity_id=request_id,
+                details={
+                    "removed_elements": removed_elements,
+                    "query": payload.query
+                }
+            )
 
         log_audit_event(
             db=db_write,
@@ -213,7 +227,7 @@ def assistant_query(
         request_id=request_id,
         conversation_id=conv_id,
         query=payload.query,
-        answer=gen_result.get("answer", ""),
+        answer=clean_answer,
         confidence=gen_result.get("confidence", "insufficient"),
         citations=citations,
         duration_ms=duration_ms,
@@ -263,9 +277,8 @@ def assistant_query_stream(
             db.refresh(conv)
             conv_id = conv.id
         else:
-            conv = db.query(Conversation).filter(Conversation.id == conv_id, Conversation.user_id == current_user.id).first()
-            if not conv:
-                raise HTTPException(status_code=404, detail="Conversation not found")
+            conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+            ensure_conversation_access(current_user, conv, db, action="stream_message")
 
         user_msg = ConversationMessage(
             conversation_id=conv_id,
@@ -312,6 +325,8 @@ def assistant_query_stream(
 
             final_citations = finalize_citations_and_evidence(full_answer, rag_prep["all_citations"], payload.query)
 
+        from app.services.output_filter import sanitize_answer
+        clean_answer, removed_elements = sanitize_answer(full_answer)
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
         # 4. TEMPS 3 : Réouverture de session courte pour sauvegarder la réponse et la télémétrie
@@ -321,7 +336,7 @@ def assistant_query_stream(
                 asst_msg = ConversationMessage(
                     conversation_id=conv_id,
                     role="assistant",
-                    content=full_answer,
+                    content=clean_answer,
                     confidence=rag_prep["confidence"] if final_citations else "insufficient",
                     citations=json.dumps(final_citations, ensure_ascii=False) if final_citations else None
                 )
@@ -342,6 +357,20 @@ def assistant_query_stream(
                     abstained=(not bool(final_citations))
                 )
                 db_write.add(rda_query)
+
+                if removed_elements > 0:
+                    log_audit_event(
+                        db=db_write,
+                        actor_user_id=current_user.id,
+                        action="response_sanitized",
+                        entity_type="rda_query",
+                        entity_id=request_id,
+                        details={
+                            "removed_elements": removed_elements,
+                            "query": payload.query
+                        }
+                    )
+
                 db_write.query(Conversation).filter(Conversation.id == conv_id).update({"updated_at": func.now()})
                 db_write.commit()
         except Exception as e:
@@ -351,7 +380,7 @@ def assistant_query_stream(
         done_payload = {
             "message_id": message_id,
             "conversation_id": conv_id,
-            "answer": full_answer,
+            "answer": clean_answer,
             "citations": final_citations,
             "confidence": rag_prep["confidence"] if final_citations else "insufficient",
             "duration_ms": duration_ms

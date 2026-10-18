@@ -1,0 +1,56 @@
+name: OWASP ZAP Baseline Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "URL cible pour le scan ZAP"
+        required: false
+        default: "http://localhost:3000"
+
+jobs:
+  zap-scan:
+    name: OWASP ZAP Baseline Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Create environment configuration
+        run: |
+          cp env.example .env
+          sed -i 's/APP_ENV=development/APP_ENV=staging/g' .env
+          sed -i 's/JWT_SECRET=changeme_jwt_secret_32_characters_minimum_camrail_2026/JWT_SECRET=zap_scan_super_secure_jwt_secret_key_32_chars_2026/g' .env
+          sed -i 's/AUDIT_HMAC_KEY=changeme_audit_hmac_secret_key_32_characters_minimum_2026/AUDIT_HMAC_KEY=zap_scan_audit_hmac_secret_key_32_chars_camrail_2026/g' .env
+
+      - name: Start services without Ollama
+        run: |
+          # Démarrage des conteneurs applicatifs sans Ollama (db, backend, frontend)
+          docker compose up -d db backend frontend
+
+      - name: Wait for application availability
+        run: |
+          echo "Attente de la disponibilité de l'application..."
+          timeout 120 bash -c 'until curl -k -s -f http://localhost:8000/docs > /dev/null; do sleep 3; done'
+          echo "Backend FastAPI opérationnel."
+          timeout 120 bash -c 'until curl -k -s -f http://localhost:3000 > /dev/null; do sleep 3; done'
+          echo "Frontend Next.js opérationnel."
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ github.event.inputs.target_url || 'http://localhost:3000' }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+        continue-on-error: true
+
+      - name: Upload ZAP Scan Report Artifact
+        uses: actions/upload-artifact@v4.6.1
+        with:
+          name: zap-security-scan-report
+          path: |
+            report_html.html
+            report_md.md
+            report_json.json
+          if-no-files-found: ignore

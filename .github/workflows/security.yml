@@ -1,0 +1,101 @@
+name: Security CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Analyse hebdomadaire chaque lundi à 04h00 UTC
+    - cron: '0 4 * * 1'
+
+jobs:
+  security-audit:
+    name: Security Audits & Abuse Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: camrail_user
+          POSTGRES_PASSWORD: camrail_password
+          POSTGRES_DB: railmind
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code (full history for secret detection)
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5.4.0
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4.2.0
+        with:
+          node-version: "20"
+          cache: 'npm'
+          cache-dependency-path: frontend/camrail-rda/package.json
+
+      - name: Gitleaks Secret Detection
+        uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+      - name: Install Python security tools & dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest httpx bandit pip-audit
+
+      - name: Python Dependency Audit (pip-audit)
+        working-directory: ./backend
+        run: |
+          pip-audit -r requirements.txt --progress-spinner off
+
+      - name: Static Application Security Testing (Bandit)
+        working-directory: ./backend
+        run: |
+          bandit -r app -ll --configfile .bandit
+
+      - name: Frontend Dependency Audit (npm audit)
+        working-directory: ./frontend/camrail-rda
+        run: |
+          npm audit --omit=dev --audit-level=high
+
+      - name: Prepare Offline Models
+        run: |
+          python scripts/prepare_models.py
+
+      - name: Setup Database & Migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://camrail_user:camrail_password@localhost:5432/railmind
+          JWT_SECRET: "ci_testing_secret_key_minimum_32_characters_railmind_2026"
+          AUDIT_HMAC_KEY: "ci_testing_audit_hmac_secret_key_minimum_32_characters_2026"
+        run: |
+          alembic upgrade head
+
+      - name: Run Abuse & Security Pytest Suite
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://camrail_user:camrail_password@localhost:5432/railmind
+          LLM_PROVIDER: mock
+          JWT_SECRET: "ci_testing_secret_key_minimum_32_characters_railmind_2026"
+          AUDIT_HMAC_KEY: "ci_testing_audit_hmac_secret_key_minimum_32_characters_2026"
+          APP_ENV: development
+        run: |
+          pytest -m security -v

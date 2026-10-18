@@ -18,3 +18,20 @@ def db(db_engine):
     session.close()
     transaction.rollback()
     connection.close()
+
+
+@pytest.fixture(autouse=True)
+def reset_login_attempts_between_tests():
+    """Évite qu'un test de bruteforce ne verrouille les comptes de test pour les tests suivants."""
+    from app.models.schemas import LoginAttempt, User
+    with SessionLocal() as s:
+        s.query(LoginAttempt).delete()
+        s.query(User).filter(User.email.in_(["admin@camrail.net", "docadmin@camrail.net", "readonly@camrail.net"])).update({"is_active": True})
+        s.commit()
+    yield
+    with SessionLocal() as s:
+        s.query(LoginAttempt).delete()
+        s.query(User).filter(User.email.in_(["admin@camrail.net", "docadmin@camrail.net", "readonly@camrail.net"])).update({"is_active": True})
+        s.commit()
+
+

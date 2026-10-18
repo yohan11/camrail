@@ -57,18 +57,18 @@ def test_hybrid_search():
             pdf.cell(200, 10, text="REGLEMENTATION DU TRAVAIL ET TEMPS DE REPOS", new_x="LMARGIN", new_y="NEXT", align="C")
             pdf.multi_cell(
                 0, 10,
-                text="Le repos minimum entre deux services est de douze heures. "
-                     "Cette regle est strictement appliquee a l ensemble du personnel roulant "
-                     "et des agents de conduite de CAMRAIL pour garantir la securite des circulations ferroviaires."
+                text=("Le repos minimum entre deux services est de douze heures. "
+                      "Cette regle est strictement appliquee a l ensemble du personnel roulant "
+                      "et des agents de conduite de CAMRAIL pour garantir la securite des circulations ferroviaires. ") * 5
             )
     
             pdf.add_page()
             pdf.cell(200, 10, text="MAINTENANCE DU MATERIEL ROULANT", new_x="LMARGIN", new_y="NEXT", align="C")
             pdf.multi_cell(
                 0, 10,
-                text="La maintenance preventive des locomotives diesel-electriques s effectue "
-                     "tous les cinquante mille kilometres ou tous les six mois au technicentre de Douala Bassa. "
-                     "Les bogies et moteurs de traction subissent un controle complet."
+                text=("La maintenance preventive des locomotives diesel-electriques s effectue "
+                      "tous les cinquante mille kilometres ou tous les six mois au technicentre de Douala Bassa. "
+                      "Les bogies et moteurs de traction subissent un controle complet. ") * 5
             )
     
             pdf_bytes = bytes(pdf.output())

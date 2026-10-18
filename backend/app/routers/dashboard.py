@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 import pytz
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, RoleChecker
 from app.models.schemas import User, Document, RdaQuery, AuditEvent
 from app.schemas.dashboard import DashboardSummary, DashboardQueryItem, DashboardAuditItem
-from typing import List
+from typing import List, Optional
+
+from app.security import filter_accessible_documents
+from app.services.audit import verify_chain, log_audit_event
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -17,22 +20,16 @@ def get_dashboard_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 1. Documents Metrics (Isolated by department if read_only)
-    doc_query = db.query(Document)
-    if current_user.role == "read_only" and current_user.department:
-        doc_query = doc_query.filter(Document.department == current_user.department)
-        
+    # 1. Documents Metrics (Filtré selon la règle unique d'accès)
+    doc_query = filter_accessible_documents(db.query(Document), current_user)
     documents_total = doc_query.count()
     
     # documents_by_status
-    status_counts = db.query(Document.status, func.count(Document.id))\
-        .group_by(Document.status)
-        
-    if current_user.role == "read_only" and current_user.department:
-        status_counts = status_counts.filter(Document.department == current_user.department)
-        
-    documents_by_status = {status: count for status, count in status_counts.all()}
-    
+    status_query = filter_accessible_documents(
+        db.query(Document.status, func.count(Document.id)).group_by(Document.status),
+        current_user
+    )
+    documents_by_status = {status: count for status, count in status_query.all()}
     documents_active = documents_by_status.get("active", 0)
     
     # 2. Questions Metrics (Global - as per instructions for PoC)
@@ -101,3 +98,47 @@ def get_dashboard_audit(
             user_email=e.User.email if e.User else "Système"
         ) for e in events
     ]
+
+
+@router.get("/audit/verify")
+def verify_dashboard_audit(
+    request: Request,
+    current_user: User = Depends(RoleChecker(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Vérifie l'intégrité cryptographique de la chaîne de hachage du journal d'audit.
+    Réservé aux administrateurs.
+    Écrit un événement d'audit 'audit_verified' à chaque vérification.
+    """
+    ok, verified_count, first_broken_seq = verify_chain(db)
+
+    # Libellé normalisé selon les exigences de la mission
+    if ok:
+        message = "Intégrité du journal : vérifiée"
+    else:
+        message = f"ALTÉRÉE à partir de l'événement {first_broken_seq}"
+
+    # Enregistrement de l'événement de vérification dans la chaîne d'audit
+    log_audit_event(
+        db=db,
+        actor_user_id=current_user.id,
+        action="audit_verified",
+        entity_type="audit",
+        entity_id=None,
+        details={
+            "ok": ok,
+            "verified_count": verified_count,
+            "first_broken_seq": first_broken_seq,
+            "message": message
+        },
+        request=request
+    )
+
+    return {
+        "ok": ok,
+        "verified_count": verified_count,
+        "first_broken_seq": first_broken_seq,
+        "message": message
+    }
+

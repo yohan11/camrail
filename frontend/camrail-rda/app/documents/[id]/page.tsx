@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -49,31 +49,44 @@ export default function DocumentViewerPage() {
   const [document, setDocument] = useState<DocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState("");
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
 
-  // Load evidence from localStorage (TTL: 1 hour)
+  // Nettoyage de l'Object URL au démontage ou au changement de document
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [documentId]);
+
+  // Load evidence from sessionStorage and delete immediately once read
   useEffect(() => {
     if (typeof window === "undefined" || !documentId) return;
     try {
-      const raw = window.localStorage.getItem(`evidence:${documentId}`);
+      const storageKey = `evidence:${documentId}`;
+      const raw = window.sessionStorage.getItem(storageKey);
       if (!raw) return;
 
       const parsed = JSON.parse(raw);
       const ONE_HOUR = 60 * 60 * 1000;
       if (parsed?.savedAt && Date.now() - parsed.savedAt < ONE_HOUR && Array.isArray(parsed.items)) {
         setEvidenceItems(parsed.items);
-      } else {
-        window.localStorage.removeItem(`evidence:${documentId}`);
       }
+      // Supprime la clé dès qu'elle est lue
+      window.sessionStorage.removeItem(storageKey);
     } catch {
       // ignore
     }
   }, [documentId]);
 
-  // Load document detail and sort pages ONCE
+  // Load document detail and securely fetch PDF blob
   useEffect(() => {
     async function loadDocument() {
       try {
@@ -93,10 +106,40 @@ export default function DocumentViewerPage() {
           token = getAccessToken() || getSession()?.token || "";
         }
 
-        if (token) {
-          setFileUrl(`${apiUrl}/documents/${documentId}/file?token=${token}`);
-        } else {
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = null;
+          setFileUrl(null);
+        }
+
+        if (!token) {
           setFileError("Non autorisé. Veuillez vous reconnecter.");
+        } else {
+          setFileLoading(true);
+          setFileError("");
+          try {
+            const resp = await fetch(`${apiUrl}/documents/${documentId}/file`, {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            });
+            if (!resp.ok) {
+              if (resp.status === 404) {
+                setFileError("Document non trouvé ou accès non autorisé.");
+              } else {
+                setFileError(`Erreur lors du chargement du fichier (${resp.status})`);
+              }
+            } else {
+              const blob = await resp.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              blobUrlRef.current = objectUrl;
+              setFileUrl(objectUrl);
+            }
+          } catch (fileErr) {
+            setFileError("Impossible de contacter le serveur pour charger le fichier.");
+          } finally {
+            setFileLoading(false);
+          }
         }
       } catch (err) {
         setError(
@@ -358,7 +401,9 @@ export default function DocumentViewerPage() {
                                 <ReactMarkdown
                                   remarkPlugins={[remarkGfm]}
                                   rehypePlugins={[rehypeRaw]}
+                                  disallowedElements={["img", "iframe", "script", "object", "embed", "video", "audio", "form", "input"]}
                                   components={{
+                                    img: () => null,
                                     table: ({ children }) => (
                                       <div className="overflow-x-auto my-4 rounded-lg border border-slate-200 shadow-xs">
                                         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
@@ -413,13 +458,20 @@ export default function DocumentViewerPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center w-full h-full text-slate-400 flex-col gap-3">
-                      {loading ? (
-                        <p className="text-sm">Chargement du document...</p>
+                    <div className="flex items-center justify-center w-full h-full text-slate-500 flex-col gap-3 p-6 text-center">
+                      {loading || fileLoading ? (
+                        <>
+                          <div className="h-8 w-8 animate-spin rounded-full border-3 border-camrail-red border-t-transparent" />
+                          <p className="text-sm font-medium text-slate-700">Chargement sécurisé du document en cours...</p>
+                        </>
+                      ) : fileError ? (
+                        <div className="max-w-md p-6 rounded-xl bg-red-50 border border-red-200 text-center">
+                          <p className="text-sm font-semibold text-red-800 mb-1">Impossible d&apos;afficher le fichier</p>
+                          <p className="text-xs text-red-600">{fileError}</p>
+                        </div>
                       ) : (
                         <div className="text-center p-6">
                           <p className="text-sm font-medium text-slate-600">Impossible d&apos;afficher le document original.</p>
-                          {fileError && <p className="text-xs text-red-500 mt-2 font-medium">Détail : {fileError}</p>}
                         </div>
                       )}
                     </div>

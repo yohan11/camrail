@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
 from app.models import schemas
 from app.security import hash_password
+from app.config import settings
 
 def seed_database(db: Session):
     """
@@ -17,6 +17,9 @@ def seed_database(db: Session):
             db.commit()
 
         if user_count == 0:
+            if getattr(settings, "APP_ENV", "development") == "production":
+                print("Mode production : aucun compte de démonstration n'est créé. Utilisez scripts/create_admin.py pour initialiser l'administrateur.")
+                return
             print("No users found. Seeding initial manager accounts...")
             
             # Roles: admin, document_admin, read_only
