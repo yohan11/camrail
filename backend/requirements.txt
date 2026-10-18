@@ -55,7 +55,7 @@ python-docx==1.2.0
 python-dotenv==1.2.2
 python-multipart==0.0.32
 PyYAML==6.0.3
-regex==2026.7.19
+regex==2026.9.29
 rich==15.0.0
 safetensors==0.8.0
 scikit-learn==1.9.0
