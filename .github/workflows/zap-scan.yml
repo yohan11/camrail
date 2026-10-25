@@ -38,7 +38,7 @@ jobs:
           echo "Frontend Next.js opérationnel."
 
       - name: Run OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: ${{ github.event.inputs.target_url || 'http://localhost:3000' }}
           rules_file_name: '.zap/rules.tsv'
@@ -46,7 +46,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload ZAP Scan Report Artifact
-        uses: actions/upload-artifact@v4.6.1
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: zap-security-scan-report
           path: |
