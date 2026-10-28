@@ -34,6 +34,8 @@ const translations: Record<Language, Record<string, string>> = {
     "app.dashboard": "Tableau de bord",
     "app.history": "HISTORIQUE",
     "app.no_history": "Aucune conversation",
+    "app.delete_conversation": "Supprimer la conversation",
+    "app.delete_conversation_confirm": "Voulez-vous vraiment supprimer cette conversation de l'historique ?",
     "app.logout": "Se déconnecter",
     "app.login": "Se connecter",
 
@@ -115,6 +117,8 @@ const translations: Record<Language, Record<string, string>> = {
     "app.dashboard": "Dashboard",
     "app.history": "HISTORY",
     "app.no_history": "No conversations",
+    "app.delete_conversation": "Delete conversation",
+    "app.delete_conversation_confirm": "Do you really want to delete this conversation from history?",
     "app.logout": "Logout",
     "app.login": "Sign in",
 

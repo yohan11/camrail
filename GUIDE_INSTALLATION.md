@@ -45,6 +45,8 @@ Dans ce guide :
   - *Exemple Windows :* `D:\camrail-main` ou `C:\Projets\camrail`
 - Chaque section présente les commandes **Linux (Bash)** et **Windows (PowerShell / CMD)** côte-à-côte.
 
+![RailMind Lite - Vue d'ensemble de l'Architecture](docs/assets/rag-overview.png)
+
 ---
 
 ## 2. Inventaire Exhaustif des Poids, Modèles IA et Binaires Tiers
@@ -54,7 +56,8 @@ Voici le tableau de synthèse des éléments externes à installer, leur raison 
 | Composant | Rôle dans RailMind Lite | Taille | Emplacement Cible (Linux) | Emplacement Cible (Windows) | Commande de Test / Validation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Ollama (Binaire)** | Moteur d'inférence LLM local exécutant les modèles de langage | ~100 Mo | `/usr/local/bin/ollama` | `C:\Users\<user>\AppData\Local\Programs\Ollama` | `ollama --version` |
-| **Poids LLM `llama3.2:3b`** | Modèle de langage générant les réponses argumentées de l'assistant | ~2.0 Go | `/usr/share/ollama/.ollama/models/` ou `~/.ollama/models/` | `%USERPROFILE%\.ollama\models\` | `ollama list` |
+| **Poids LLM `qwen2.5:3b`** | **Modèle de référence actif.** Recommandé pour CAMRAIL : haute fidélité au français, respect strict des consignes et acronymes | ~1.9 Go | `/usr/share/ollama/.ollama/models/` ou `~/.ollama/models/` | `%USERPROFILE%\.ollama\models\` | `ollama list` |
+| **Poids LLM `llama3.2:3b`** | Modèle alternatif léger pour CPU modeste | ~2.0 Go | `/usr/share/ollama/.ollama/models/` ou `~/.ollama/models/` | `%USERPROFILE%\.ollama\models\` | `ollama list` |
 | **Modèle d'Embedding `multilingual-e5-small`** | Vectorisation des documents et requêtes (384 dimensions) | ~450 Mo | `<racine_projet>/backend/models/multilingual-e5-small/` | `<racine_projet>\backend\models\multilingual-e5-small\` | Présence des fichiers `model.safetensors` et `tokenizer.json` |
 | **Poppler (`poppler-utils`)** | Découpage des PDF en pages individuelles et génération de vignettes | ~30 Mo | `/usr/bin/pdftoppm` | Dossier choisi + ajouté au `PATH` (ex: `C:\Program Files\poppler\Library\bin`) | `pdftoppm -v` |
 | **Tesseract OCR** | Reconnaissance optique de texte sur les scans ou documents numérisés | ~50 Mo | `/usr/bin/tesseract` | `C:\Program Files\Tesseract-OCR\tesseract.exe` | `tesseract --version` |
@@ -209,14 +212,21 @@ Ollama démarre automatiquement en tâche de fond (icône dans la barre des tâc
 
 ### B. Téléchargement du Modèle LLM
 
-Exécutez dans votre terminal :
+Exécutez dans votre terminal selon votre configuration :
 ```bash
-# Modèle standard recommandé pour RailMind Lite (compromis parfait rapidité/qualité) :
+# 1. Modèle standard de référence (RECOMMANDÉ pour CAMRAIL) :
+# Supériorité en français technique, respect des acronymes (VACMA, DVL, AVL) et citations fiables
+ollama pull qwen2.5:3b
+
+# 2. Modèle alternatif standard (Meta) :
 ollama pull llama3.2:3b
 
-# Si vous disposez d'un serveur puissant ou avec GPU (Profil C) :
+# 3. Modèle étendu si vous disposez d'un serveur dédié avec GPU (Profil C) :
 ollama pull llama3.1:8b
 ```
+
+> 💡 **Pourquoi Qwen 2.5 3B est le modèle recommandé ?**  
+> Les tests comparatifs menés sur le corpus ferroviaire de CAMRAIL ont démontré que `qwen2.5:3b` applique avec une rigueur supérieure les consignes strictes du prompt système (pas de phrases creuses du type *"Selon les extraits..."*, respect sans substitution des codes réglementaires et des registres d'exploitation, abstention factuelle quand l'information n'est pas trouvée).
 
 ### C. Où sont stockés les poids téléchargés ?
 Ollama stocke les tenseurs binaires dans un dossier système :
@@ -228,7 +238,8 @@ Ollama stocke les tenseurs binaires dans un dossier système :
 ollama list
 # Doit afficher :
 # NAME            ID              SIZE      MODIFIED
-# llama3.2:3b     a80c4f17acd5    2.0 GB    ...
+# qwen2.5:3b     357c53fb659c    1.9 GB    ...
+# llama3.2:3b    478be6f61dbe    2.0 GB    ...
 ```
 
 ---
@@ -325,14 +336,25 @@ ACCESS_TOKEN_EXPIRE_MINUTES=480
 # ==========================================
 # MODÈLES IA LOCAUX (AIR-GAPPED)
 # ==========================================
-# Chemin relatif ou absolu vers le dossier des modèles
+# Chemin relatif ou absolu vers le dossier des modèles d'embedding
 MODELS_DIR=./models
 EMBEDDING_MODEL=multilingual-e5-small
 
-# Moteur LLM Ollama
+# Moteur LLM Ollama local (qwen2.5:3b recommandé pour CAMRAIL, ou llama3.2:3b)
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
-OLLAMA_TIMEOUT=120
+OLLAMA_MODEL=qwen2.5:3b
+OLLAMA_TIMEOUT_SECONDS=120
+OLLAMA_NUM_CTX=4096
+OLLAMA_NUM_PREDICT=300
+
+# ==========================================
+# RECHERCHE RAG & PAGINATION VIRTUELLE
+# ==========================================
+RAG_MIN_CONFIDENCE=0.18
+CHUNK_SIZE_WORDS=150
+CHUNK_OVERLAP_WORDS=30
+DOCX_WORDS_PER_VIRTUAL_PAGE=450
+EVIDENCE_MIN_SCORE=0.30
 
 # ==========================================
 # URLs PUBLIQUES & SÉCURITÉ CORS

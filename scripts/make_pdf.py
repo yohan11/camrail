@@ -185,6 +185,14 @@ def generate_pdf():
         margin-bottom: 4px;
     }
 
+    img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin: 12px 0;
+        border: 1px solid #e2e8f0;
+    }
+
     hr {
         border: none;
         border-top: 1px solid #e2e8f0;

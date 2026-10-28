@@ -186,6 +186,16 @@ def hybrid_search(
     # 5. Sort candidates and optionally rerank with CrossEncoder
     candidate_ids = sorted(chunk_scores.keys(), key=lambda cid: chunk_scores[cid], reverse=True)
     
+    # Déduplication par contenu pour éliminer les doublons de documents identiques
+    seen_content = set()
+    deduped_candidates = []
+    for cid in candidate_ids:
+        c_text = (chunk_map[cid][0].content or "").strip()[:80].lower()
+        if c_text and c_text not in seen_content:
+            seen_content.add(c_text)
+            deduped_candidates.append(cid)
+    candidate_ids = deduped_candidates
+    
     if getattr(settings, "RERANKER_ENABLED", False) and candidate_ids:
         rerank_candidates = candidate_ids[:15]
         reranker = get_reranker()

@@ -769,32 +769,43 @@ function AssistantContent() {
             </div>
           ) : (
             <div className="max-w-4xl mx-auto w-full px-4 pt-6 pb-6 space-y-6">
-              {messages.map((message, index) => (
-                <div key={index} className={`flex gap-4 p-5 rounded-xl ${message.role === "user" ? "bg-slate-50" : "bg-white"}`}>
-                  {message.role === "assistant" ? (
-                    <div className="shrink-0 h-8 w-8 flex items-center justify-center bg-white border border-slate-100 rounded-full shadow-sm">
-                      <img src="/camrail-logo-transparent.png" alt="RailMind" className="h-4 w-auto object-contain" />
-                    </div>
-                  ) : (
-                    <div className="shrink-0 h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs mt-1">
-                      U
-                    </div>
-                  )}
-                  
-                  <div className="flex-1 min-w-0 flex flex-col items-start">
-                    {/* Main Content */}
-                    <div className={`w-full ${message.abstention ? "p-4 bg-red-50 border border-red-100 rounded-xl text-slate-800" : "text-slate-800"}`}>
-                      {message.role === "assistant" ? (
-                        <div className="relative group max-w-[70ch]">
-                          <div className="prose prose-base prose-slate max-w-[70ch] leading-relaxed text-slate-800">
-                            {renderFormattedMarkdown(message.content, message.citations)}
-                            {isTyping && index === messages.length - 1 && (
-                              <span 
-                                className="inline-block w-2.5 h-4.5 ml-1 bg-camrail-red rounded-[1px] animate-pulse align-middle" 
-                                aria-hidden="true"
-                              />
-                            )}
-                          </div>
+              {messages.map((message, index) => {
+                // Ne pas afficher un message assistant s'il est vide (sans texte ni citations),
+                // ce qui évite d'afficher le bloc blanc fantôme avec le carré rouge pendant la recherche documentaire
+                if (
+                  message.role === "assistant" &&
+                  (!message.content || !message.content.trim()) &&
+                  (!message.citations || message.citations.length === 0)
+                ) {
+                  return null;
+                }
+
+                return (
+                  <div key={index} className={`flex gap-4 p-5 rounded-xl ${message.role === "user" ? "bg-slate-50" : "bg-white"}`}>
+                    {message.role === "assistant" ? (
+                      <div className="shrink-0 h-8 w-8 flex items-center justify-center bg-white border border-slate-100 rounded-full shadow-sm">
+                        <img src="/camrail-logo-transparent.png" alt="RailMind" className="h-4 w-auto object-contain" />
+                      </div>
+                    ) : (
+                      <div className="shrink-0 h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs mt-1">
+                        U
+                      </div>
+                    )}
+                    
+                    <div className="flex-1 min-w-0 flex flex-col items-start">
+                      {/* Main Content */}
+                      <div className={`w-full ${message.abstention ? "p-4 bg-red-50 border border-red-100 rounded-xl text-slate-800" : "text-slate-800"}`}>
+                        {message.role === "assistant" ? (
+                          <div className="relative group max-w-[70ch]">
+                            <div className="prose prose-base prose-slate max-w-[70ch] leading-relaxed text-slate-800">
+                              {renderFormattedMarkdown(message.content, message.citations)}
+                              {isTyping && Boolean(message.content && message.content.trim()) && index === messages.length - 1 && (
+                                <span 
+                                  className="inline-block w-2.5 h-4.5 ml-1 bg-camrail-red rounded-[1px] animate-pulse align-middle" 
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </div>
                           {/* TTS Button */}
                           {!isTyping && message.content && (
                             <button
@@ -932,7 +943,8 @@ function AssistantContent() {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+            })}
 
               {/* Indicateur de chargement : Recherche -> Rédaction (visible uniquement avant le début de frappe) */}
               {loading && (!messages[messages.length - 1]?.content || streamingStatus === "searching") && (

@@ -11,7 +11,11 @@ Ce sous-projet contient l'API REST FastAPI de **RailMind Lite**, le moteur RAG d
 
 - **100 % Local & Souverain** : Aucune dépendance vers des API cloud externes (zéro appel sortant).
 - **Moteur d'Embedding Local** : `intfloat/multilingual-e5-small` (384 dimensions) ou `BAAI/bge-m3` (1024 dimensions) stocké dans `MODELS_DIR`.
-- **Moteur LLM Local** : Inférence via Ollama (`llama3.2:3b` par défaut).
+- **Moteur LLM Local (Ollama)** : `qwen2.5:3b` (**modèle de référence actif**, recommandé pour CAMRAIL en raison de sa fidélité au français technique et aux acronymes métiers) ou `llama3.2:3b` (alternatif léger).
+- **Ingestion & Recherche RAG Hybride** :
+  - Traitement PDF (Poppler + Tesseract OCR) et DOCX avec **pagination virtuelle** proportionnelle.
+  - Recherche combinée dense (pgvector HNSW) et lexicale (GIN) avec fusion RRF.
+  - Déduplication automatique des contenus identiques et service d'extraction de preuves contextuelles ([EvidenceExtractor](app/services/evidence.py)).
 - **Haute Concurrence (~1000 utilisateurs quotidiens)** :
   - Découplage strict des sessions DB (zéro connexion occupée pendant l'inférence LLM).
   - Sémaphore de concurrence avec file d'attente temporisée (60s -> HTTP 503).
@@ -40,6 +44,10 @@ pip install -r requirements.txt
 
 ### Étape 3 : Télécharger le modèle LLM local
 ```bash
+# Modèle de référence recommandé pour CAMRAIL :
+ollama pull qwen2.5:3b
+
+# Modèle alternatif standard :
 ollama pull llama3.2:3b
 ```
 
