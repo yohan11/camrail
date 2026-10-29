@@ -1,4 +1,4 @@
-# © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
+# © MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
 
 import os
 import sys

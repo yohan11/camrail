@@ -51,7 +51,7 @@ Le système s'articule autour d'une architecture à trois niveaux, entièrement 
 ## 🔒 Confidentialité et Souveraineté 100% Locale
 
 Conformément aux directives de sécurité industrielle de CAMRAIL :
-* **Zéro Appel Cloud Externe** : Aucun appel vers des API tierces (OpenAI, Google Gemini, Anthropic ou Hugging Face) en production.
+* **Zéro Appel Cloud Externe** : Aucun appel vers des API tierces (OpenAI, Anthropic, Hugging Face ou tout autre service cloud LLM) en production.
 * **Circuit Fermé Strict (Air-Gapped)** : Le système fonctionne en autonomie complète hors d'Internet (`HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`). Vérifié automatiquement par des tests unitaires sous interception réseau stricte (`tests/test_no_outbound_network.py`).
 * **Poids des Modèles Embarqués Localement** : Tous les poids (vecteurs d'embeddings et modèles LLM) sont préchargés sur le serveur (`MODELS_DIR` et dépôt local Ollama).
 * **Isolation Réseau Docker** : Les ports internes de base de données (5432) et du moteur Ollama (11434) ne sont **pas publiés sur la machine hôte**, restant confinés au réseau virtuel interne.

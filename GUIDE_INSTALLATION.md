@@ -45,7 +45,7 @@ Dans ce guide :
   - *Exemple Windows :* `D:\camrail-main` ou `C:\Projets\camrail`
 - Chaque section présente les commandes **Linux (Bash)** et **Windows (PowerShell / CMD)** côte-à-côte.
 
-![RailMind Lite - Vue d'ensemble de l'Architecture](docs/assets/rag-overview.png)
+![RailMind Lite - Vue d'ensemble de l'Architecture](docs/assets/rag-overview.svg)
 
 ---
 

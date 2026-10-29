@@ -1,4 +1,4 @@
-# © 2026 MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
+# © MBIH NGALLY YOHAN JONATHAN & TIENTCHEU NLOM DAVID. Tous droits réservés.
 # Utilisation en production strictement interdite sans licence commerciale.
 # TODO (DÉCISION HUMAINE) : Vérifier si cette mention de licence commerciale stricte n'entre pas en conflit avec le règlement de soumission du concours.
 

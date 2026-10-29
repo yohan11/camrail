@@ -14,7 +14,7 @@ services:
   # 1. Base de données PostgreSQL avec extension pgvector
   # ----------------------------------------------------------------------------
   db:
-    # Image officielle pgvector (PostgreSQL 16) - version épinglée (vérifiée le 2026-10-18)
+    # Image officielle pgvector (PostgreSQL 16) - version épinglée
     image: pgvector/pgvector:0.7.4-pg16
     container_name: railmind-db
     restart: unless-stopped
@@ -104,7 +104,7 @@ services:
   # 4. Service Ollama (Optionnel via profil compose : docker compose --profile ollama up -d)
   # ----------------------------------------------------------------------------
   ollama:
-    # Image officielle Ollama - version épinglée (vérifiée le 2026-10-18)
+    # Image officielle Ollama - version épinglée
     image: ollama/ollama:0.4.7
     container_name: railmind-ollama
     restart: unless-stopped
@@ -120,7 +120,7 @@ services:
   # 5. Reverse-Proxy Nginx TLS (Profil HTTPS : docker compose --profile https up -d)
   # ----------------------------------------------------------------------------
   nginx:
-    # Image officielle Nginx Alpine - version épinglée (vérifiée le 2026-10-18)
+    # Image officielle Nginx Alpine - version épinglée
     image: nginx:1.26.2-alpine
     container_name: railmind-nginx
     restart: unless-stopped

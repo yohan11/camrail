@@ -301,7 +301,8 @@ def assistant_query_stream(
 
     def event_stream():
         full_answer = ""
-        # 1. Émettre les métadonnées de démarrage
+        # 1. Émettre les sources et métadonnées de démarrage
+        yield f"event: sources\ndata: {json.dumps(initial_sources_payload, ensure_ascii=False)}\n\n"
         yield f"event: meta\ndata: {json.dumps({'conversation_id': conv_id, 'confidence': rag_prep['confidence']}, ensure_ascii=False)}\n\n"
 
         # 2. Cas d'abstention immédiate

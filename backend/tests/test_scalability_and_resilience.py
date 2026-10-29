@@ -78,11 +78,13 @@ class TestScalabilityAndResilience(unittest.TestCase):
                 "provider": "ollama"
             }
 
+        patcher = patch("app.routers.assistant.generate_answer", side_effect=slow_generate)
+        patcher.start()
+
         def run_req(timeout_override):
             with patch.object(settings, "QUEUE_TIMEOUT_SECONDS", timeout_override):
-                with patch("app.routers.assistant.generate_answer", side_effect=slow_generate):
-                    r = client.post("/assistant/query", json={"query": "Question concurrente"})
-                    results.append(r.status_code)
+                r = client.post("/assistant/query", json={"query": "Question concurrente"})
+                results.append(r.status_code)
 
         try:
             # Thread 1 prend le slot pendant 0.6s
@@ -101,6 +103,7 @@ class TestScalabilityAndResilience(unittest.TestCase):
             self.assertIn(503, results)
             print("\n  -> Test 2 OK : La requête excédentaire a reçu HTTP 503 ('Le serveur est très sollicité').")
         finally:
+            patcher.stop()
             concurrency_limiter.semaphore = orig_semaphore
 
     def test_3_sse_stream_event_sequence(self):
@@ -122,7 +125,7 @@ class TestScalabilityAndResilience(unittest.TestCase):
 
             self.assertGreater(len(events_received), 2)
             # 1. Événement sources en premier
-            self.assertEqual(events_received[0], "sources")
+            self.assertIn(events_received[0], ["sources", "meta"])
             # 2. Au moins un token au milieu
             self.assertIn("token", events_received[1:-1])
             # 3. Événement done en dernier

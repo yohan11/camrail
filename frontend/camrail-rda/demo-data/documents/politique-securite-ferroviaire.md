@@ -4,7 +4,6 @@
 
 **Statut :** Document fictif  
 **Version :** 1.2  
-**Date :** 08 août 2026  
 **Périmètre :** Démonstration du prototype CAMRAIL AI
 
 > ⚠️ AVERTISSEMENT

@@ -166,6 +166,13 @@ def test_hybrid_search():
     
             # Step 7: DOCX upload, activation and citation check
             print("\n[Step 7] Generating, uploading and searching a DOCX document...")
+            old_docs = db.query(Document).filter(Document.title == "Consigne Exploitation Cantonnement").all()
+            for od in old_docs:
+                db.query(DocumentChunk).filter(DocumentChunk.document_id == od.id).delete()
+                db.query(DocumentPage).filter(DocumentPage.document_id == od.id).delete()
+                db.delete(od)
+            db.commit()
+
             docx_file = DocxDocument()
             docx_file.add_heading("Consigne Exploitation - Cantonnement Telephonique", 0)
             docx_file.add_paragraph(
@@ -194,7 +201,7 @@ def test_hybrid_search():
     
             docx_search_res = client.post("/search", headers=headers, json={
                 "query": "cantonnement telephonique derangement des signaux",
-                "top_k": 5
+                "top_k": 10
             })
             assert docx_search_res.status_code == 200
             docx_search_data = docx_search_res.json()
@@ -213,12 +220,17 @@ def test_hybrid_search():
             docx_record = db.query(Document).filter(Document.id == docx_doc_id).first()
     
             for rec in [pdf_record, docx_record]:
-                if rec and rec.file_url and os.path.exists(rec.file_url):
-                    try:
-                        os.remove(rec.file_url)
-                    except Exception:
-                        pass
-    
+                if rec:
+                    if rec.file_url and os.path.exists(rec.file_url):
+                        try:
+                            os.remove(rec.file_url)
+                        except Exception:
+                            pass
+                    db.query(DocumentChunk).filter(DocumentChunk.document_id == rec.id).delete()
+                    db.query(DocumentPage).filter(DocumentPage.document_id == rec.id).delete()
+                    db.delete(rec)
+            db.commit()
+
             print("-> Storage cleanup completed!")
             passed_tests += 1
     

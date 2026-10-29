@@ -26,6 +26,7 @@ def render_edge_pdf(html_content: str, out_pdf: Path, title: str = "Document"):
         edge_bin,
         "--headless",
         "--disable-gpu",
+        "--no-pdf-header-footer",
         "--run-all-compositor-stages-before-draw",
         f"--print-to-pdf={out_pdf.resolve()}",
         str(temp_html.resolve().as_uri())
@@ -318,7 +319,7 @@ def rebuild_synthese_globale(target_pdf: Path):
             <span class="doc-badge">DOCUMENT 1 / 4</span>
             <div class="doc-title">Rapport de Conception Détaillée (RDA / RAG)</div>
             <p class="doc-intro">
-                <strong>Objet & Cadre :</strong> Ce rapport (v1.0 du 14 août 2026) détaille la conception de la solution de Recherche Documentaire Augmentée (RDA/RAG) pour CAMRAIL, en réponse au cahier des charges du 15 juin 2026. La gestion du roulement du personnel est strictement hors périmètre.
+                <strong>Objet & Cadre :</strong> Ce rapport (v1.0) détaille la conception de la solution de Recherche Documentaire Augmentée (RDA/RAG) pour CAMRAIL, en réponse au cahier des charges opérationnel. La gestion du roulement du personnel est strictement hors périmètre.
             </p>
 
             <h2 class="section-h2">1. Architecture Globale & Choix Technologiques</h2>
@@ -352,7 +353,7 @@ def rebuild_synthese_globale(target_pdf: Path):
 
             <div style="margin-top: 14px;">
                 <span class="doc-badge">DOCUMENT 2 / 4</span>
-                <div class="doc-title">Dossier de Test & Recette (Validation Août 2026)</div>
+                <div class="doc-title">Dossier de Test & Recette (Validation & Recette Système)</div>
                 <p class="doc-intro" style="margin-bottom: 0;">
                     Ce dossier valide l'ensemble des fonctionnalités opérationnelles de RailMind Lite sur le système en développement à travers 22 cas de test (TR-01 à TR-22), tous validés avec succès (<strong>100% Fonctionnel</strong>).
                 </p>
@@ -444,7 +445,7 @@ def rebuild_synthese_globale(target_pdf: Path):
                 </div>
 
                 <div class="callout-box">
-                    <strong>Paramètres par défaut & Exploitation :</strong> Port Backend 8000 (Uvicorn), Port Frontend 3000. Compte par défaut : <code>admin@camrail.net</code> / <code>camrail2026</code>. Sauvegarde quotidienne via <code>pg_dump</code>.
+                    <strong>Paramètres par défaut & Exploitation :</strong> Port Backend 8000 (Uvicorn), Port Frontend 3000. Compte par défaut : <code>admin@camrail.net</code> / <code>adminpassword</code>. Sauvegarde quotidienne via <code>pg_dump</code>.
                 </div>
             </div>
 
@@ -518,32 +519,28 @@ def main():
     docs_dir = root / "Documentation RailMind Lite"
     docs_dir.mkdir(parents=True, exist_ok=True)
     
-    p1 = docs_dir / "01_Rapport_Conception_Detaillee.pdf"
-    p2 = docs_dir / "02_Dossier_Test_et_Recette.pdf"
     p_syn = docs_dir / "Synthese_Globale_RailMind_Lite.pdf"
     
-    # 1. Supprimer les anciens fichiers comme demandé explicitement par l'utilisateur
-    for p in [p1, p2, p_syn]:
-        if p.exists():
-            print(f"Suppression de l'ancien document : {p.name}")
-            p.unlink()
-            
-    # 2. Re-générer les nouveaux documents
-    print("\nRe-création des documents assainis...")
-    rebuild_doc_1(p1)
-    rebuild_doc_2(p2)
+    # 1. Supprimer l'ancien fichier
+    if p_syn.exists():
+        print(f"Suppression de l'ancien document : {p_syn.name}")
+        p_syn.unlink()
+        
+    # 2. Re-générer la synthèse globale assainie sans en-tête de date ni mentions de dates
+    print("\nRe-création de la synthèse globale assainie...")
     rebuild_synthese_globale(p_syn)
     
     # 3. Vérification exhaustive post-génération
-    print("\nVérification d'absence totale de 'gemini' dans tous les PDFs...")
-    for p in [p1, p2, p_syn]:
-        reader = pypdf.PdfReader(str(p))
-        full_text = ""
-        for i, page in enumerate(reader.pages):
-            full_text += (page.extract_text() or "") + " "
-        
-        assert "gemini" not in full_text.lower(), f"ALERTE: Gemini trouvé dans {p.name}!"
-        print(f"  [VALIDE] {p.name} : {len(reader.pages)} pages, ZERO mention de Gemini.")
+    print("\nVérification d'absence totale de dates d'exécution et de 'gemini'...")
+    reader = pypdf.PdfReader(str(p_syn))
+    full_text = ""
+    for i, page in enumerate(reader.pages):
+        full_text += (page.extract_text() or "") + " "
+    
+    assert "gemini" not in full_text.lower(), f"ALERTE: Gemini trouvé dans {p_syn.name}!"
+    assert "2026" not in full_text, f"ALERTE: Date trouvée dans {p_syn.name}!"
+    assert "août" not in full_text.lower(), f"ALERTE: Mois trouvé dans {p_syn.name}!"
+    print(f"  [VALIDE] {p_syn.name} : {len(reader.pages)} pages, ZERO date, ZERO mention tierce.")
 
 if __name__ == "__main__":
     main()

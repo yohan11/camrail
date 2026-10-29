@@ -249,6 +249,7 @@ def generate_pdf():
         edge_bin,
         "--headless",
         "--disable-gpu",
+        "--no-pdf-header-footer",
         "--run-all-compositor-stages-before-draw",
         f"--print-to-pdf={pdf_file}",
         str(temp_html.resolve().as_uri())

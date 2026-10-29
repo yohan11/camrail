@@ -150,14 +150,16 @@ class TestNoOutboundNetwork(unittest.TestCase):
         test_doc_id = None
         try:
             # 1. Indexation d'un document de démonstration
+            import uuid
+            unique_token = uuid.uuid4().hex[:10]
             demo_doc = Document(
-                title="Règlement de Sécurité Exploitation CAMRAIL Test",
-                family_key="reglement_securite_test",
+                title=f"Règlement de Sécurité Exploitation CAMRAIL Test {unique_token}",
+                family_key=f"reglement_securite_test_{unique_token}",
                 version="1.0",
                 category="Securite",
                 department="Exploitation",
-                file_url="local://reglement_securite_test.pdf",
-                checksum="checksum_test_100_local_test_unique_2",
+                file_url=f"local://reglement_securite_test_{unique_token}.pdf",
+                checksum=f"checksum_test_100_local_{unique_token}",
                 uploaded_by=self.mock_user.id
             )
             db.add(demo_doc)

@@ -236,7 +236,7 @@ function AssistantContent() {
       const queue = typingQueueRef.current;
 
       if (queue.length > 0) {
-        // Vitesse adaptative pour une frappe fluide type ChatGPT / Gemini
+        // Vitesse adaptative pour une frappe fluide type assistant IA
         let step = 1;
         if (queue.length > 80) step = 5;
         else if (queue.length > 40) step = 3;
