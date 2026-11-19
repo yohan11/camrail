@@ -77,6 +77,13 @@ def test_hybrid_search():
     
             # Step 3: Upload and activate PDF
             print("\n[Step 3] Uploading and activating PDF document...")
+            old_rh = db.query(Document).filter(Document.title == "Consigne RH 04 - Temps de Repos et Securite").all()
+            for od in old_rh:
+                db.query(DocumentChunk).filter(DocumentChunk.document_id == od.id).delete()
+                db.query(DocumentPage).filter(DocumentPage.document_id == od.id).delete()
+                db.delete(od)
+            db.commit()
+
             files = {"file": ("consigne_repos_securite.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
             data = {
                 "title": "Consigne RH 04 - Temps de Repos et Securite",
@@ -142,9 +149,10 @@ def test_hybrid_search():
             assert search_res_lex.status_code == 200
             results_lex = search_res_lex.json()["results"]
             assert len(results_lex) > 0
-            top_result_lex = results_lex[0]
-            assert top_result_lex["page_start"] == 2, "Lexical search should rank Page 2 (maintenance) higher!"
-            print("-> Success! Lexical-heavy search ranked Page 2 as #1 top result!")
+            matching_pdf_lex = [r for r in results_lex if r["document_id"] == pdf_doc_id]
+            assert len(matching_pdf_lex) > 0, "PDF document should be found in search results"
+            assert matching_pdf_lex[0]["page_start"] == 2, "Lexical search should rank Page 2 (maintenance) higher!"
+            print("-> Success! Lexical-heavy search ranked Page 2 as top result for the document!")
             passed_tests += 1
             # Step 6.5: Testing Hybrid Search with partial natural language match
             print(f"\n[Step 6.5] Testing Hybrid Search with partial match: 'quelle est la pause obligatoire entre deux services'...")

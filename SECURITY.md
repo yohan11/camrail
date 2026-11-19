@@ -7,7 +7,7 @@ Ce document présente l'architecture de sécurité, l'analyse des risques (modè
 ## 1. Périmètre et Hypothèses
 
 ### 1.1 Périmètre couvert
-Le système **CAMRAIL RailMind Lite** est un assistant de recherche documentaire ferroviaire augmenté par génération (RAG) destiné à un usage professionnel interne au sein de CAMRAIL (Cameroun).
+Le système **RailMind Lite** est un assistant de recherche documentaire ferroviaire augmenté par génération (RAG) conçu et développé dans le cadre du concours d'innovation CAMRAIL.
 
 - **Composants inclus** :
   - Passerelle inverse HTTPS / TLS (Nginx).
@@ -19,7 +19,7 @@ Le système **CAMRAIL RailMind Lite** est un assistant de recherche documentaire
   - Journal d'audit cryptographiquement scellé (HMAC-SHA256).
 
 ### 1.2 Hypothèses d'exploitation
-- **Réseau interne souverain** : L'application est exploitée sur l'intranet sécurisé de CAMRAIL ou sur des serveurs sur site (on-premise).
+- **Réseau local souverain** : L'application est conçue pour être exploitée sur réseau local sécurisé ou serveurs sur site (on-premise).
 - **IA locale sans exfiltration** : Toutes les inférences LLM et embeddings sont exécutés localement (sur GPU/CPU sur site). Aucun appel d'API vers des fournisseurs cloud publics (OpenAI, Anthropic, Google) n'est autorisé en production.
 - **Rôles applicatifs stricts** :
   - `admin` : Administration globale des utilisateurs, sécurité, audit et documents.
@@ -231,35 +231,26 @@ Conformément à une démarche d'ingénierie de sécurité rigoureuse, les risqu
 
 ---
 
-## 7. Responsabilités de l'Exploitant CAMRAIL
+## 7. Bonnes Pratiques d'Exploitation et Déploiement
 
-Pour garantir le niveau de sécurité opérationnel du système, l'équipe d'exploitation CAMRAIL doit obligatoirement respecter les directives suivantes :
+Pour garantir le niveau optimal de sécurité opérationnel du système, l'administrateur du déploiement doit respecter les directives suivantes :
 
-1. **Certificats TLS d'entreprise** : Remplacer les certificats auto-signés de test par des certificats valides émis par l'autorité de certification interne de CAMRAIL ou une autorité publique reconnue.
+1. **Certificats TLS d'entreprise** : Remplacer les certificats auto-signés de test par des certificats valides émis par une autorité de certification d'entreprise (PKI) ou une autorité reconnue.
 2. **Sauvegardes chiffrées régulières** : Mettre en place une tâche planifiée quotidienne de sauvegarde de la base de données PostgreSQL (`pg_dump`) et du répertoire `storage/documents`, chiffrée avec GPG ou AES-256.
 3. **Rotation des secrets** : Effectuer une rotation annuelle (ou en cas de suspicion de compromission) des clés secrètes `JWT_SECRET` et `AUDIT_HMAC_KEY` dans le fichier `.env` de production.
 4. **Surveillance périodique du journal d'audit** :
-   - Configurer le script `scripts/verify_audit_chain.py` dans le planificateur de tâches (cron ou Windows Task Scheduler) pour s'exécuter chaque nuit.
-   - Configurer une alerte mail / SNMP en cas de code de sortie différent de 0.
+   - Configurer le script `scripts/verify_audit_chain.py` dans le planificateur de tâches (cron ou Windows Task Scheduler) pour s'exécuter périodiquement.
+   - Configurer une alerte en cas de code de sortie différent de 0.
 5. **Mises à jour de sécurité de l'hôte** : Appliquer régulièrement les correctifs de sécurité sur le système d'exploitation hôte (Linux Debian/Ubuntu ou Windows Server) et sur le moteur Docker.
 
 ---
 
 ## 8. Procédure de Signalement de Vulnérabilité
 
-Si vous découvrez une vulnérabilité de sécurité ou un comportement anormal dans **CAMRAIL RailMind Lite**, merci de ne pas ouvrir de ticket public.
+Si vous découvrez une vulnérabilité de sécurité ou un comportement anormal dans **RailMind Lite**, merci de ne pas ouvrir de ticket public.
 
-- **Point de contact sécurité** : `securite-informatique@camrail.net`
-- **Délai de prise en charge** : L'équipe de sécurité s'engage à accuser réception sous 48 heures ouvrées et à fournir un correctif qualifié sous 14 jours.
+- **Point de contact** : `yohanmbih@gmail.com` (MBIH NGALLY YOHAN JONATHAN)
 - **Informations requises** :
   - Description détaillée de la vulnérabilité.
   - Étapes de reproduction ou script de démonstration (PoC).
   - Version du logiciel et environnement de déploiement concerné.
-
----
-
-## 9. Historique des Versions du Document
-
-| Version | Date | Auteur | Modifications principales |
-| :--- | :--- | :--- | :--- |
-| **1.0.0** | 18/10/2026 | Antigravity AI Security Team / CAMRAIL | Version initiale complète : architecture, STRIDE, correspondances OWASP Top 10 & LLM 2025, rapport des 50 tests d'abus et risques résiduels. |

@@ -255,6 +255,7 @@ Le dossier [scripts/](scripts/) regroupe l'outillage d'automatisation et de main
 | `scripts/calibrate_threshold.py` | Recalibre automatiquement le seuil optimal de confiance RAG sur le golden set. | `python scripts/calibrate_threshold.py` |
 | `backend/scripts/reindex_all.py` | Force la réindexation complète de tous les documents actifs avec pagination virtuelle. | `python backend/scripts/reindex_all.py` |
 | `scripts/start_server.sh` / `.bat` | Script de lancement multi-workers Uvicorn pour haute disponibilité en production. | `scripts\start_server.bat` |
+| `scripts/start_docker.sh` / `.bat` | Déploiement conteneurisé automatique clé en main (préparation `.env` et lancement Docker Compose). | `scripts\start_docker.bat` |
 
 ---
 
@@ -269,4 +270,11 @@ Le dossier [scripts/](scripts/) regroupe l'outillage d'automatisation et de main
 
 ---
 
-*CAMRAIL — RailMind Lite v2.0 • Direction des Systèmes d'Information • Reproduction et diffusion autorisées pour les équipes de déploiement.*
+## 👥 Auteurs & Contact
+
+* **MBIH NGALLY YOHAN JONATHAN** — Contact : `yohanmbih@gmail.com`
+* **TIENTCHEU NLOM DAVID**
+
+---
+
+*RailMind Lite — Projet développé dans le cadre du Concours d'Innovation CAMRAIL.*

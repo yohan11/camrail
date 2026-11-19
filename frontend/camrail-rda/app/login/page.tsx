@@ -47,8 +47,8 @@ export default function LoginPage() {
       lower.includes("inactif")
     ) {
       return language === "fr"
-        ? "Ce compte est désactivé. Contactez l'administrateur CAMRAIL."
-        : "This account is disabled. Contact your CAMRAIL administrator.";
+        ? "Ce compte est désactivé. Contactez l'administrateur de l'application."
+        : "This account is disabled. Contact your application administrator.";
     }
     if (
       lower.includes("fetch") ||
@@ -59,8 +59,8 @@ export default function LoginPage() {
       lower.includes("failed to fetch")
     ) {
       return language === "fr"
-        ? "Impossible de joindre le serveur CAMRAIL. Vérifiez votre connexion réseau."
-        : "Cannot reach CAMRAIL server. Please verify your network connection.";
+        ? "Impossible de joindre le serveur. Vérifiez votre connexion réseau."
+        : "Cannot reach server. Please verify your network connection.";
     }
     return rawErr || (language === "fr" ? "Erreur de connexion." : "Authentication error.");
   }

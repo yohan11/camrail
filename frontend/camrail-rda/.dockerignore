@@ -1,0 +1,12 @@
+# Docker ignore for CAMRAIL RailMind Frontend
+node_modules
+.next
+.env*.local
+.git
+.gitignore
+.dockerignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel
+

@@ -20,8 +20,8 @@ set -e
 
 # Se positionner dans le dossier backend
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-cd "$ROOT_DIR/backend"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$BACKEND_DIR"
 
 # Charger les variables d'environnement si .env existe
 if [ -f .env ]; then
@@ -38,7 +38,7 @@ echo "  Écoute sur http://$HOST:$PORT"
 echo "=============================================================================="
 
 # Vérification préalable des modèles hors-ligne
-python ../scripts/prepare_models.py
+python scripts/prepare_models.py
 
 # Démarrage du serveur ASGI multi-workers
-exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers "$UVICORN_WORKERS"
+exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers "$UVICORN_WORKERS" --proxy-headers --forwarded-allow-ips "${TRUSTED_PROXIES:-*}"

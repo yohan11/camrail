@@ -1,7 +1,7 @@
 # ==============================================================================
 # CAMRAIL RailMind Lite - Frontend Dockerfile Durci (Non-Root USER app)
 # ==============================================================================
-# Image officielle Node.js 20 Alpine épinglée (vérifiée le 2026-10-18)
+# Image officielle Node.js 20 Alpine épinglée
 FROM node:20.18.0-alpine AS base
 
 WORKDIR /app

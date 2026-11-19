@@ -1,0 +1,17 @@
+# Docker ignore for CAMRAIL RailMind Backend
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.git
+.gitignore
+.dockerignore
+storage/documents/*
+!storage/documents/.gitkeep
+

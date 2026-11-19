@@ -23,7 +23,11 @@
 7. [Étape 5 : Initialisation de la Base de Données (Alembic & Seed)](#7-étape-5--initialisation-de-la-base-de-données-alembic--seed)
 8. [Étape 6 : Démarrage du Backend FastAPI](#8-étape-6--démarrage-du-backend-fastapi)
 9. [Étape 7 : Installation & Démarrage du Frontend Next.js](#9-étape-7--installation--démarrage-du-frontend-nextjs)
-10. [Étape 8 : Déploiement Conteneurisé Clé en Main (Docker Compose)](#10-étape-8--déploiement-conteneurisé-clé-en-main-docker-compose)
+10. [Étape 8 : Déploiement Conteneurisé Clé en Main & Durcissement (Docker Compose)](#10-étape-8--déploiement-conteneurisé-clé-en-main--durcissement-docker-compose)
+   - [A. Démarrage Standard (HTTP Interne)](#a-démarrage-standard-http-interne)
+   - [B. Déploiement Haute Sécurité HTTPS avec Reverse-Proxy Nginx](#b-déploiement-haute-sécurité-https-avec-reverse-proxy-nginx)
+   - [C. Guide d'Utilisation Immédiate : De la Connexion à la Première Question](#c-guide-dutilisation-immédiate--de-la-connexion-à-la-première-question)
+   - [D. Confidentialité & Gestion de la Dictée Vocale](#d-confidentialité--gestion-de-la-dictée-vocale-microphone)
 11. [Procédure de Transfert 100 % Hors-Ligne (Serveur Air-Gapped)](#11-procédure-de-transfert-100--hors-ligne-serveur-air-gapped)
 12. [Guide de Dépannage & Erreurs Fréquentes](#12-guide-de-dépannage--erreurs-fréquentes)
 
@@ -32,7 +36,7 @@
 ## 1. Principes d'Architecture & Conventions de Chemins
 
 ### A. Souveraineté et Étancheité Réseau
-RailMind Lite est conçu pour respecter les contraintes strictes de confidentialité de **CAMRAIL** :
+RailMind Lite est conçu pour respecter les contraintes strictes de confidentialité et de souveraineté des données ferroviaires :
 - **Zéro appel cloud externe** : Aucun flux réseau sortant vers OpenAI, Google, Anthropic ou Hugging Face en production.
 - **Inférence 100 % locale** : Génération textuelle opérée par **Ollama** et vectorisation sémantique opérée par **SentenceTransformers** depuis des fichiers locaux.
 - **Circuit fermé (Air-Gapped)** : Le système fonctionne sans connexion Internet active une fois les modèles et dépendances installés.
@@ -525,11 +529,24 @@ RailMind Lite intègre une infrastructure conteneurisée hautement durcie respec
 - **Rôle DB applicatif restreint** : L'application se connecte avec le rôle `railmind_app` (défini dans `deploy/postgres/init.sql`) sans aucun privilège de super-utilisateur.
 
 ### A. Démarrage Standard (HTTP Interne)
+
+#### Option 1 : Lancement Automatique en 1 Clic (Recommandé)
+- **Sous Windows :**
+  ```powershell
+  scripts\start_docker.bat
+  ```
+- **Sous Linux / macOS :**
+  ```bash
+  bash scripts/start_docker.sh
+  ```
+
+#### Option 2 : Lancement Manuel
 ```bash
 cd <racine_projet>
 
 # 1. Copier et adapter les variables d'environnement
-cp env.example .env
+cp backend/.env.example backend/.env
+cp frontend/camrail-rda/.env.local.example frontend/camrail-rda/.env.local
 
 # 2. Construire et lancer les services essentiels
 docker compose up -d --build
@@ -562,14 +579,14 @@ Générez un certificat auto-signé valide pour `localhost` et `railmind.camrail
   ```
 Ces scripts génèrent `deploy/certs/privkey.pem` et `deploy/certs/fullchain.pem` (répertoire automatiquement exclu de git via `.gitignore`).
 
-##### Option B : Production Ferroviaire CAMRAIL (Autorité de Certification Interne PKI / AD CS)
+##### Option B : Production Entreprise (Autorité de Certification Interne PKI / AD CS)
 Pour déployer en production sans avertissement de sécurité sur les navigateurs des postes de travail :
-1. Faites émettre un certificat serveur auprès de la **Direction des Systèmes d'Information (DSI) de CAMRAIL** ou de l'autorité racine Active Directory Certificate Services (AD CS).
+1. Faites émettre un certificat serveur auprès de votre autorité de certification d'entreprise (PKI / AD CS) ou d'une autorité reconnue.
 2. Déposez la clé privée serveur au format PEM dans :  
    `deploy/certs/privkey.pem` (définissez les droits stricts : `chmod 600`).
-3. Concaténez le certificat du serveur, les certificats intermédiaires et le certificat racine CAMRAIL dans :  
+3. Concaténez le certificat du serveur, les certificats intermédiaires et le certificat racine dans :  
    `deploy/certs/fullchain.pem`.
-4. Assurez-vous que l'autorité racine CAMRAIL est déployée via GPO dans le magasin *"Autorités de certification racines de confiance"* des postes clients.
+4. Assurez-vous que l'autorité racine est déployée dans le magasin *"Autorités de certification racines de confiance"* des postes clients.
 
 #### 2. Configuration du Frontend pour l'Origine Relative
 En mode HTTPS frontal, configurez le frontend pour utiliser l'URL relative de même origine :
@@ -587,13 +604,45 @@ L'application est alors accessible de façon totalement sécurisée sur **https:
 
 ---
 
-### C. Confidentialité & Gestion de la Dictée Vocale (Microphone)
+### C. Guide d'Utilisation Immédiate : De la Connexion à la Première Question
+
+Une fois les conteneurs démarrés via Docker Compose (`docker compose up -d` ou via le script `scripts/start_docker.bat` / `scripts/start_docker.sh`) :
+
+#### 1. Accès à l'Interface Web
+Ouvrez votre navigateur web sur **http://localhost:3000** (ou **https://localhost** si le profil HTTPS est activé).
+
+#### 2. Authentification avec les Comptes de Démonstration
+Connectez-vous à l'aide de l'un des comptes préconfigurés selon votre profil de test :
+* **Administrateur Global** : `admin@camrail.net` / `adminpassword` (accès complet : gestion documentaire, audit, paramètres, assistant).
+* **Responsable Sécurité** : `security@camrail.net` / `securitypassword` (gestion documentaire et assistant).
+* **Conducteur / Agent Métier** : `driver@camrail.net` / `driverpassword` (consultation documentaire et interrogation de l'assistant).
+
+#### 3. Ingestion & Indexation d'un Document de Référence
+1. Rendez-vous dans la section **Documents** depuis le menu latéral gauche.
+2. Cliquez sur le bouton **Nouveau Document**.
+3. Choisissez un document réglementaire ferroviaire (format PDF ou DOCX, ex. dans le dossier `Documentation RailMind Lite/`).
+4. Indiquez le titre, la version et le département métier, puis validez.
+5. Le système opère automatiquement le découpage en fragments sémantiques, l'extraction de texte (avec OCR Tesseract si scan) et la vectorisation d'embeddings dans PostgreSQL.
+6. Cliquez sur le bouton **Activer** pour rendre le document interrogeable dans la base de connaissances active.
+
+#### 4. Première Question Posée dans l'Assistant
+1. Ouvrez l'onglet **Assistant** dans la navigation latérale.
+2. Saisissez votre première question métier en langage naturel dans la barre de prompt, par exemple :
+   > *"Quelle est la durée minimale de repos obligatoire entre deux prises de service pour le personnel roulant ?"*
+3. **Observation du Résultat Certifié** :
+   - Le moteur exécute une recherche hybride dense (vecteurs HNSW) et lexicale (GIN tsvector) sécurisée selon votre rôle.
+   - La réponse se génère en streaming temps réel token par token.
+   - Les sources exactes apparaissent sous forme de badges de citation cliquables (numéro de page précise et extrait de texte vérifiable), garantissant l'absence totale d'hallucination.
+
+---
+
+### D. Confidentialité & Gestion de la Dictée Vocale (Microphone)
 
 Pour garantir une étanchéité absolue des données ferroviaires, **la dictée vocale dans l'assistant est DÉSACTIVÉE PAR DÉFAUT**.
 
-> ⚠️ **Avertissement de Sécurité :** L'API `webkitSpeechRecognition` intégrée aux navigateurs (Google Chrome, Microsoft Edge) transmet les flux audio captés par le microphone vers les serveurs cloud de tiers (Google ou Microsoft) pour transcription vocale. Sur un réseau isolé ou pour des informations confidentielles d'exploitation, ce flux externe constitue un risque de fuite de données.
+> ⚠️ **Avertissement de Sécurité :** L'API `webkitSpeechRecognition` intégrée aux navigateurs (Google Chrome, Microsoft Edge) transmet les flux audio captés par le microphone vers les serveurs cloud de tiers pour transcription vocale. Sur un réseau isolé ou pour des informations confidentielles, ce flux externe constitue un risque de fuite de données.
 
-Si la politique de sécurité informatique de CAMRAIL autorise cette fonctionnalité sur votre poste :
+Si la politique de sécurité informatique autorise cette fonctionnalité sur votre poste :
 1. Ouvrez `frontend/camrail-rda/.env.local`.
 2. Définissez la variable suivante :
    ```env
@@ -605,7 +654,7 @@ Si la politique de sécurité informatique de CAMRAIL autorise cette fonctionnal
 
 ## 11. Procédure de Transfert 100 % Hors-Ligne (Serveur Air-Gapped)
 
-Dans le cas où le serveur final de CAMRAIL n'a **aucun accès Internet** :
+Dans le cas où le serveur cible n'a **aucun accès Internet** (environnement isolé / air-gapped) :
 
 ### Étape 1 : Sur une machine connectée (votre poste de travail)
 1. **Cloner le projet** et installer les dépendances.
@@ -629,7 +678,7 @@ Dans le cas où le serveur final de CAMRAIL n'a **aucun accès Internet** :
 
 ---
 
-### Étape 2 : Sur le serveur isolé CAMRAIL
+### Étape 2 : Sur le serveur isolé cible
 1. **Copier les fichiers du projet** à l'emplacement cible (ex: `/opt/camrail/railmind` ou `D:\camrail`).
 2. **Restaurer les modèles Ollama :**
    - *Linux :* `sudo tar -xzvf ollama_models.tar.gz -C /usr/share/ollama/.ollama/`
@@ -659,4 +708,5 @@ Dans le cas où le serveur final de CAMRAIL n'a **aucun accès Internet** :
 
 ---
 
-*Document maintenu par l'équipe technique CAMRAIL — RailMind Lite v2.0.*
+*RailMind Lite — Guide Universel d'Installation & Déploiement.*  
+*Auteurs : MBIH NGALLY YOHAN JONATHAN (`yohanmbih@gmail.com`) & TIENTCHEU NLOM DAVID.*

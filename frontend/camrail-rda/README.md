@@ -19,7 +19,7 @@ Interface web moderne pour l'assistant documentaire et la recherche intelligente
 Créez un fichier `.env.local` dans le dossier `frontend/camrail-rda` :
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
-# Activer le micro pour la dictée vocale si autorisé par la DSI (désactivé par défaut) :
+# Activer le micro pour la dictée vocale si autorisé par la politique locale (désactivé par défaut) :
 NEXT_PUBLIC_VOICE_INPUT_ENABLED=false
 ```
 

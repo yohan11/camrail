@@ -1,7 +1,7 @@
 # ==============================================================================
 # CAMRAIL RailMind Lite - Backend Dockerfile Durci (Non-Root, Multi-Workers)
 # ==============================================================================
-# Image officielle Python 3.12 slim épinglée (vérifiée le 2026-10-18)
+# Image officielle Python 3.12 slim épinglée
 FROM python:3.12.7-slim
 
 WORKDIR /app

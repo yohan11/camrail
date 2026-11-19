@@ -35,8 +35,10 @@ echo   Demarrage de CAMRAIL RailMind Lite Backend avec %UVICORN_WORKERS% workers
 echo   Ecoute sur http://%HOST%:%PORT%
 echo ==============================================================================
 
+if "%TRUSTED_PROXIES%"=="" set TRUSTED_PROXIES=*
+
 rem Verification prealable des modeles hors-ligne
 python scripts\prepare_models.py
 
 rem Demarrage du serveur ASGI multi-workers
-uvicorn app.main:app --host %HOST% --port %PORT% --workers %UVICORN_WORKERS%
+uvicorn app.main:app --host %HOST% --port %PORT% --workers %UVICORN_WORKERS% --proxy-headers --forwarded-allow-ips "%TRUSTED_PROXIES%"

@@ -40,7 +40,7 @@ if ($opensslCmd) {
     & openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
         -keyout "$PrivKeyPath" `
         -out "$FullChainPath" `
-        -subj "/C=CM/ST=Littoral/L=Douala/O=CAMRAIL/OU=DSI/CN=railmind.camrail.net" `
+        -subj "/C=CM/ST=Littoral/L=Douala/O=CAMRAIL/OU=RailMind/CN=railmind.camrail.net" `
         -addext "subjectAltName=DNS:localhost,DNS:railmind.camrail.net,IP:127.0.0.1"
 
     Write-Host "`n[OK] Certificats generes avec succes via OpenSSL :" -ForegroundColor Green
@@ -80,7 +80,7 @@ subject = issuer = x509.Name([
     x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, 'Littoral'),
     x509.NameAttribute(NameOID.LOCALITY_NAME, 'Douala'),
     x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'CAMRAIL'),
-    x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, 'DSI'),
+    x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, 'RailMind'),
     x509.NameAttribute(NameOID.COMMON_NAME, 'railmind.camrail.net'),
 ])
 
